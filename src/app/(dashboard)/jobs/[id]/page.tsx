@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from "react"
 import Link from "next/link"
-import { ArrowLeft, Pencil } from "lucide-react"
+import { ArrowLeft, Pencil, Upload } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { Job, Project, Client, Application, Candidate, Activity, JOB_STATUSES } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { ResumeUploadModal } from "@/components/resume-upload-modal"
 
 type JobWithRelations = Job & { projects: Project & { clients: Client } }
 type ApplicationWithCandidate = Application & { candidates: Candidate }
@@ -23,6 +24,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [activities, setActivities] = useState<Activity[]>([])
   const [editMode, setEditMode] = useState(false)
   const [editJob, setEditJob] = useState<Partial<Job>>({})
+  const [resumeModalOpen, setResumeModalOpen] = useState(false)
 
   useEffect(() => { fetchData() }, [id])
 
@@ -49,6 +51,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     }
     await supabase.from("jobs").update(payload).eq("id", id)
     setEditMode(false)
+    fetchData()
+  }
+
+  function handleResumeUploadComplete() {
+    setResumeModalOpen(false)
     fetchData()
   }
 
@@ -100,6 +107,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         </TabsList>
 
         <TabsContent value="applications" className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => setResumeModalOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />Add Candidate (Upload Resume)
+            </Button>
+          </div>
           <div className="rounded-lg border">
             <Table>
               <TableHeader><TableRow><TableHead>Candidate</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead><TableHead>Applied</TableHead></TableRow></TableHeader>
@@ -142,6 +154,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           </div>
         </TabsContent>
       </Tabs>
+
+      <ResumeUploadModal
+        open={resumeModalOpen}
+        onOpenChange={setResumeModalOpen}
+        jobId={id}
+        onComplete={handleResumeUploadComplete}
+      />
     </div>
   )
 }

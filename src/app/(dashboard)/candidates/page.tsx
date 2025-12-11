@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Plus, Search } from "lucide-react"
+import { Plus, Search, Upload } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { Candidate } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -13,8 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ResumeUploadModal } from "@/components/resume-upload-modal"
 
-const SOURCES = ["linkedin", "referral", "indeed", "website", "recruiter"]
+const SOURCES = ["linkedin", "referral", "indeed", "website", "recruiter", "resume_upload"]
 
 export default function CandidatesPage() {
   const router = useRouter()
@@ -23,6 +24,7 @@ export default function CandidatesPage() {
   const [search, setSearch] = useState("")
   const [sourceFilter, setSourceFilter] = useState<string>("")
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [resumeModalOpen, setResumeModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
@@ -79,46 +81,56 @@ export default function CandidatesPage() {
     router.push(`/candidates/${data.id}`)
   }
 
+  function handleResumeComplete(candidateId: string) {
+    setResumeModalOpen(false)
+    router.push(`/candidates/${candidateId}`)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Candidates</h1>
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); setError(null) }}>
-          <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Add Candidate</Button></DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Add New Candidate</DialogTitle></DialogHeader>
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2"><Label>Full Name *</Label><Input required value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Email</Label><Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} /></div>
-                <div className="space-y-2"><Label>Phone</Label><Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} /></div>
-              </div>
-              <div className="space-y-2"><Label>LinkedIn URL</Label><Input value={formData.linkedin_url} onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })} /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Current Title</Label><Input value={formData.current_title} onChange={(e) => setFormData({ ...formData, current_title: e.target.value })} /></div>
-                <div className="space-y-2"><Label>Current Company</Label><Input value={formData.current_company} onChange={(e) => setFormData({ ...formData, current_company: e.target.value })} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Location</Label><Input value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} /></div>
-                <div className="space-y-2">
-                  <Label>Source</Label>
-                  <Select value={formData.source} onValueChange={(v) => setFormData({ ...formData, source: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
-                    <SelectContent>{SOURCES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent>
-                  </Select>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setResumeModalOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />Add from Resume
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); setError(null) }}>
+            <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Add Candidate</Button></DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader><DialogTitle>Add New Candidate</DialogTitle></DialogHeader>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2"><Label>Full Name *</Label><Input required value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Email</Label><Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Phone</Label><Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} /></div>
                 </div>
-              </div>
-              <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? "Creating..." : "Create Candidate"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="space-y-2"><Label>LinkedIn URL</Label><Input value={formData.linkedin_url} onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Current Title</Label><Input value={formData.current_title} onChange={(e) => setFormData({ ...formData, current_title: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Current Company</Label><Input value={formData.current_company} onChange={(e) => setFormData({ ...formData, current_company: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Location</Label><Input value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} /></div>
+                  <div className="space-y-2">
+                    <Label>Source</Label>
+                    <Select value={formData.source} onValueChange={(v) => setFormData({ ...formData, source: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
+                      <SelectContent>{SOURCES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button type="submit" className="w-full" disabled={submitting}>
+                  {submitting ? "Creating..." : "Create Candidate"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="flex gap-4">
@@ -169,6 +181,12 @@ export default function CandidatesPage() {
           </TableBody>
         </Table>
       </div>
+
+      <ResumeUploadModal
+        open={resumeModalOpen}
+        onOpenChange={setResumeModalOpen}
+        onComplete={handleResumeComplete}
+      />
     </div>
   )
 }

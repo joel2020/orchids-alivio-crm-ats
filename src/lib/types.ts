@@ -229,6 +229,97 @@ export type InstantlyEmailEvent = {
   created_at: string
 }
 
+export type Placement = {
+  id: string
+  application_id: string
+  status: string | null
+  start_date: string | null
+  fee: number | null
+  currency: string
+  notes: string | null
+  account_id: string | null
+  created_at: string
+  updated_at: string
+  applications?: Application
+}
+
+export type ResumeFile = {
+  id: string
+  candidate_id: string | null
+  file_name: string
+  file_type: string
+  file_size: number
+  storage_path: string
+  file_hash: string | null
+  account_id: string | null
+  created_at: string
+}
+
+export type ParseJobStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+export type ResumeParseJob = {
+  id: string
+  resume_file_id: string
+  status: ParseJobStatus
+  job_id: string | null
+  project_id: string | null
+  candidate_id: string | null
+  parsed_data: ParsedResume | null
+  parse_confidence: number | null
+  parser_provider: string | null
+  error_message: string | null
+  account_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ParsedResume = {
+  fullName: string | null
+  firstName: string | null
+  lastName: string | null
+  primaryEmail: string | null
+  secondaryEmails: string[]
+  phoneNumbers: string[]
+  currentLocation: {
+    city: string | null
+    state: string | null
+    country: string | null
+  } | null
+  relocationOpen: boolean
+  remotePreference: 'on-site' | 'hybrid' | 'remote' | 'unknown'
+  currentTitle: string | null
+  currentCompany: string | null
+  linkedinUrl: string | null
+  githubUrl: string | null
+  personalWebsiteUrl: string | null
+  summary: string | null
+  experience: {
+    companyName: string
+    title: string
+    startDate: string | null
+    endDate: string | null
+    isCurrent: boolean
+    location: string | null
+    responsibilities: string | null
+    skills: string[]
+  }[]
+  education: {
+    institutionName: string
+    degree: string | null
+    fieldOfStudy: string | null
+    startDate: string | null
+    endDate: string | null
+  }[]
+  skills: {
+    name: string
+    level: string | null
+    yearsExperience: number | null
+  }[]
+  rawJson?: Record<string, unknown>
+}
+
+export const PLACEMENT_STATUSES = ['pending', 'confirmed', 'started', 'completed', 'cancelled'] as const
+
 export const APPLICATION_STAGES: ApplicationStage[] = [
   'applied',
   'screening',
