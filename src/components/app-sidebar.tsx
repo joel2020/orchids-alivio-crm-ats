@@ -15,6 +15,7 @@ import {
   Settings,
   Mail,
   LayoutDashboard,
+  UserCircle,
 } from "lucide-react"
 
 import {
@@ -31,6 +32,7 @@ import {
 
 const crmItems = [
   { title: "Clients", href: "/clients", icon: Building2 },
+  { title: "Contacts", href: "/contacts", icon: UserCircle },
   { title: "Opportunities", href: "/opportunities", icon: Target },
   { title: "Tasks", href: "/tasks", icon: CheckSquare },
 ]

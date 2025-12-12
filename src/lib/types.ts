@@ -1,23 +1,46 @@
+export type ClientStatus = 'prospect' | 'active' | 'dormant' | 'lost'
+export type ClientTier = 'A' | 'B' | 'C'
+
 export type Client = {
   id: string
   name: string
   website: string | null
   size_band: string | null
   industry: string | null
+  region: string | null
+  status: ClientStatus
+  tier: ClientTier
   billing_email: string | null
   user_id: string | null
+  owner_id: string | null
   created_at: string
   updated_at?: string
 }
+
+export type ContactSeniority = 'c_level' | 'vp' | 'director' | 'manager' | 'ic'
 
 export type ClientContact = {
   id: string
   client_id: string
   name: string
+  full_name: string | null
+  first_name: string | null
+  last_name: string | null
   email: string
+  phone: string | null
+  phones: string[]
   title: string | null
+  department: string | null
+  seniority: ContactSeniority | null
   role_type: string | null
+  notes: string | null
+  is_decision_maker: boolean
+  linkedin_url: string | null
+  owner_id: string | null
+  is_primary_contact: boolean
   created_at: string
+  updated_at?: string
+  clients?: Client
 }
 
 export type Project = {
@@ -92,15 +115,30 @@ export type Interview = {
   applications?: Application & { candidates?: Candidate; jobs?: Job }
 }
 
-export type ActivityType = 'client_created' | 'project_created' | 'job_created' | 'candidate_created' | 'application_created' | 'stage_changed' | 'interview_scheduled' | 'interview_completed' | 'note_added' | 'status_changed'
+export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'task' | 'system_event' | 'client_created' | 'project_created' | 'job_created' | 'candidate_created' | 'application_created' | 'stage_changed' | 'interview_scheduled' | 'interview_completed' | 'note_added' | 'status_changed'
+export type ActivityDirection = 'inbound' | 'outbound'
+export type ActivitySource = 'manual' | 'instantly' | 'n8n' | 'system'
 
 export type Activity = {
   id: string
   object_type: string | null
   object_id: string | null
   type: ActivityType | string | null
+  subject: string | null
+  body: string | null
+  direction: ActivityDirection | null
+  timestamp: string
   payload: Record<string, unknown> | null
   user_id: string | null
+  owner_id: string | null
+  source: ActivitySource | null
+  client_id: string | null
+  contact_id: string | null
+  candidate_id: string | null
+  job_id: string | null
+  application_id: string | null
+  external_message_id: string | null
+  email_provider: string | null
   created_at: string
 }
 
@@ -127,25 +165,34 @@ export type Account = {
   updated_at: string
 }
 
-export type OpportunityStage = 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost'
+export type OpportunityStage = 'lead' | 'qualification' | 'proposal' | 'verbal' | 'won' | 'lost'
+export type OpportunitySource = 'referral' | 'outbound' | 'inbound' | 'existing_client' | 'other'
+export type ReasonLost = 'price' | 'timing' | 'competition' | 'no_budget' | 'no_decision' | 'other'
 
 export type Opportunity = {
   id: string
   account_id: string
   client_id: string | null
   project_id: string | null
+  primary_contact_id: string | null
+  linked_job_id: string | null
   name: string
   stage: OpportunityStage
   value: number | null
   currency: string
   probability: number
   expected_close_date: string | null
+  actual_close_date: string | null
+  reason_lost: ReasonLost | null
+  reason_lost_text: string | null
+  source: OpportunitySource | null
   owner_user_id: string | null
   notes: string | null
   created_at: string
   updated_at: string
   clients?: Client
   projects?: Project
+  primary_contact?: ClientContact
 }
 
 export type TaskStatus = 'open' | 'in_progress' | 'done'
@@ -163,8 +210,35 @@ export type Task = {
   completed_at: string | null
   status: TaskStatus
   priority: TaskPriority
+  client_id: string | null
+  contact_id: string | null
+  candidate_id: string | null
+  job_id: string | null
+  application_id: string | null
   created_at: string
   updated_at: string
+}
+
+export type UserRole = 'admin' | 'recruiter' | 'readonly'
+
+export type User = {
+  id: string
+  email: string
+  full_name: string | null
+  role: UserRole
+  created_at: string
+  updated_at: string
+}
+
+export type AuditLog = {
+  id: string
+  entity_type: string
+  entity_id: string
+  action: string
+  user_id: string | null
+  before_data: Record<string, unknown> | null
+  after_data: Record<string, unknown> | null
+  created_at: string
 }
 
 export type Note = {
@@ -318,6 +392,9 @@ export type ParsedResume = {
   rawJson?: Record<string, unknown>
 }
 
+export const CLIENT_STATUSES: ClientStatus[] = ['prospect', 'active', 'dormant', 'lost']
+export const CLIENT_TIERS: ClientTier[] = ['A', 'B', 'C']
+export const CONTACT_SENIORITIES: ContactSeniority[] = ['c_level', 'vp', 'director', 'manager', 'ic']
 export const PLACEMENT_STATUSES = ['pending', 'confirmed', 'started', 'completed', 'cancelled'] as const
 
 export const APPLICATION_STAGES: ApplicationStage[] = [
@@ -335,7 +412,10 @@ export const PROJECT_MODELS = ['retained', 'contingent', 'sprint', 'talent_engin
 export const INTERVIEW_STAGES = ['screen', 'hiring_manager', 'panel', 'final'] as const
 export const INTERVIEW_STATUSES: InterviewStatus[] = ['scheduled', 'completed', 'canceled', 'no_show']
 export const CONTACT_ROLE_TYPES = ['decision_maker', 'recruiting', 'finance'] as const
-export const ACTIVITY_TYPES: ActivityType[] = ['client_created', 'project_created', 'job_created', 'candidate_created', 'application_created', 'stage_changed', 'interview_scheduled', 'interview_completed', 'note_added', 'status_changed']
-export const OPPORTUNITY_STAGES: OpportunityStage[] = ['lead', 'qualified', 'proposal', 'negotiation', 'won', 'lost']
+export const ACTIVITY_TYPES: string[] = ['call', 'email', 'meeting', 'note', 'task', 'system_event', 'client_created', 'project_created', 'job_created', 'candidate_created', 'application_created', 'stage_changed', 'interview_scheduled', 'interview_completed', 'note_added', 'status_changed']
+export const OPPORTUNITY_STAGES: OpportunityStage[] = ['lead', 'qualification', 'proposal', 'verbal', 'won', 'lost']
+export const OPPORTUNITY_SOURCES: OpportunitySource[] = ['referral', 'outbound', 'inbound', 'existing_client', 'other']
+export const REASONS_LOST: ReasonLost[] = ['price', 'timing', 'competition', 'no_budget', 'no_decision', 'other']
 export const TASK_STATUSES: TaskStatus[] = ['open', 'in_progress', 'done']
 export const TASK_PRIORITIES: TaskPriority[] = ['low', 'medium', 'high']
+export const USER_ROLES: UserRole[] = ['admin', 'recruiter', 'readonly']
