@@ -58,7 +58,9 @@ export default function ActivitiesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Activities</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">Activities</h1>
+      </div>
 
       <div className="flex gap-4">
         <div className="relative flex-1 max-w-sm">
