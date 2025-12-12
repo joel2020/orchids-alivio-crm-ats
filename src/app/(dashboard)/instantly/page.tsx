@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, RefreshCw, Mail, BarChart3 } from "lucide-react"
+import { Plus, RefreshCw, Mail, BarChart3, Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { InstantlyConnection, InstantlyCampaign } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { toast } from "sonner"
 
 const DEFAULT_ACCOUNT_ID = "7653ba80-2065-46ec-aaae-7f4eca146d1f"
 
@@ -20,6 +21,7 @@ export default function InstantlyPage() {
   const [connections, setConnections] = useState<InstantlyConnection[]>([])
   const [campaigns, setCampaigns] = useState<InstantlyCampaign[]>([])
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -65,6 +67,36 @@ export default function InstantlyPage() {
     setDialogOpen(false)
     setSubmitting(false)
     fetchData()
+  }
+
+  async function handleSync(connectionId: string) {
+    setSyncing(connectionId)
+    try {
+      const response = await fetch("/api/instantly/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connection_id: connectionId })
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        toast.success("Sync completed", {
+          description: `Synced ${result.total_synced} items: ${result.results.campaigns.synced} campaigns, ${result.results.leads.synced} leads`
+        })
+        await fetchData()
+      } else {
+        toast.error("Sync failed", {
+          description: result.error || "Failed to sync data"
+        })
+      }
+    } catch (error) {
+      toast.error("Sync error", {
+        description: String(error)
+      })
+    } finally {
+      setSyncing(null)
+    }
   }
 
   const totalSends = campaigns.reduce((s, c) => s + c.stats_sends, 0)
@@ -141,7 +173,18 @@ export default function InstantlyPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant={conn.status === "active" ? "default" : "destructive"}>{conn.status}</Badge>
-                        <Button variant="outline" size="sm"><RefreshCw className="h-4 w-4 mr-1" />Sync</Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleSync(conn.id)}
+                          disabled={syncing === conn.id}
+                        >
+                          {syncing === conn.id ? (
+                            <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Syncing</>
+                          ) : (
+                            <><RefreshCw className="h-4 w-4 mr-1" />Sync</>
+                          )}
+                        </Button>
                       </div>
                     </div>
                   </CardHeader>
