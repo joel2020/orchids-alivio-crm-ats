@@ -34,9 +34,8 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const campaignsResponse = await fetch("https://api.instantly.ai/api/v2/campaigns", {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${apiKey}` }
+      const campaignsResponse = await fetch(`https://api.instantly.ai/api/v1/campaign/list?api_key=${apiKey}`, {
+        method: "GET"
       })
 
       if (campaignsResponse.ok) {
@@ -74,13 +73,8 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const leadsResponse = await fetch("https://api.instantly.ai/api/v2/leads/list", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({ limit: 1000, skip: 0 })
+      const leadsResponse = await fetch(`https://api.instantly.ai/api/v1/lead/list?api_key=${apiKey}&limit=1000&skip=0`, {
+        method: "GET"
       })
 
       if (leadsResponse.ok) {
@@ -118,9 +112,8 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const accountsResponse = await fetch("https://api.instantly.ai/api/v2/accounts", {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${apiKey}` }
+      const accountsResponse = await fetch(`https://api.instantly.ai/api/v1/account/list?api_key=${apiKey}`, {
+        method: "GET"
       })
 
       if (accountsResponse.ok) {
