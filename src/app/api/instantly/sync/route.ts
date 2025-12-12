@@ -34,8 +34,12 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const campaignsResponse = await fetch(`https://api.instantly.ai/api/v1/campaign/list?api_key=${apiKey}`, {
-        method: "GET"
+      const campaignsResponse = await fetch("https://api.instantly.ai/api/v2/campaigns", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        }
       })
 
       if (campaignsResponse.ok) {
@@ -73,13 +77,17 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const leadsResponse = await fetch(`https://api.instantly.ai/api/v1/lead/list?api_key=${apiKey}&limit=1000&skip=0`, {
-        method: "GET"
+      const leadsResponse = await fetch("https://api.instantly.ai/api/v2/leads?limit=1000&offset=0", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        }
       })
 
       if (leadsResponse.ok) {
         const leadsData = await leadsResponse.json()
-        const leads = leadsData.leads || leadsData.data || []
+        const leads = leadsData.data || leadsData.leads || []
 
         for (const lead of leads) {
           const { error: prospectError } = await supabase
@@ -112,8 +120,12 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const accountsResponse = await fetch(`https://api.instantly.ai/api/v1/account/list?api_key=${apiKey}`, {
-        method: "GET"
+      const accountsResponse = await fetch("https://api.instantly.ai/api/v2/accounts", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        }
       })
 
       if (accountsResponse.ok) {
