@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
       ...rest
     } = payload
 
+    console.log(`Received webhook - campaign_id: ${campaign_id}, event_type: ${event_type}`)
+
     const mappedEventType = EVENT_TYPE_MAP[event_type] || event_type
 
     const { data: campaign } = await supabase
