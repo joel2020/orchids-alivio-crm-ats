@@ -87,11 +87,11 @@ export function GlobalSearch() {
         .or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
         .limit(5)
       
-      contacts?.forEach((c: { id: string; name: string; email: string; clients: { name: string } | null }) => allResults.push({
+      contacts?.forEach((c: { id: string; name: string; email: string; clients: { name: string }[] | null }) => allResults.push({
         type: "contact",
         id: c.id,
         title: c.name,
-        subtitle: c.clients?.name || c.email,
+        subtitle: (c.clients && c.clients[0]?.name) || c.email,
         href: `/contacts`,
       }))
     }
@@ -119,11 +119,11 @@ export function GlobalSearch() {
         .ilike("title", `%${searchTerm}%`)
         .limit(5)
       
-      jobs?.forEach((j: { id: string; title: string; location: string | null; projects: { clients: { name: string } | null } | null }) => allResults.push({
+      jobs?.forEach((j: { id: string; title: string; location: string | null; projects: { clients: { name: string }[] | null }[] | null }) => allResults.push({
         type: "job",
         id: j.id,
         title: j.title,
-        subtitle: j.projects?.clients?.name || j.location || undefined,
+        subtitle: (j.projects && j.projects[0]?.clients && j.projects[0].clients[0]?.name) || j.location || undefined,
         href: `/jobs/${j.id}`,
       }))
     }
@@ -135,11 +135,11 @@ export function GlobalSearch() {
         .ilike("name", `%${searchTerm}%`)
         .limit(5)
       
-      opportunities?.forEach((o: { id: string; name: string; stage: string; clients: { name: string } | null }) => allResults.push({
+      opportunities?.forEach((o: { id: string; name: string; stage: string; clients: { name: string }[] | null }) => allResults.push({
         type: "opportunity",
         id: o.id,
         title: o.name,
-        subtitle: o.clients?.name || o.stage,
+        subtitle: (o.clients && o.clients[0]?.name) || o.stage,
         href: `/opportunities/${o.id}`,
       }))
     }

@@ -217,7 +217,6 @@ async function processResumeAsync(
     )
 
     let candidateId: string | null = null
-    let isNewCandidate = false
 
     let existingCandidate = null
     if (parsedData.primaryEmail) {

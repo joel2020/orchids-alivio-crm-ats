@@ -32,9 +32,9 @@ const statusColors: Record<string, string> = {
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([])
-  const [clients, setClients] = useState<Client[]>([])
-  const [candidates, setCandidates] = useState<Candidate[]>([])
-  const [jobs, setJobs] = useState<Job[]>([])
+  const [clients, setClients] = useState<Pick<Client, 'id' | 'name'>[]>([])
+  const [candidates, setCandidates] = useState<Pick<Candidate, 'id' | 'full_name'>[]>([])
+  const [jobs, setJobs] = useState<Pick<Job, 'id' | 'title'>[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("")

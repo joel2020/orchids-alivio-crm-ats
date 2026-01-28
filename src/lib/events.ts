@@ -33,6 +33,7 @@ export type EventPayload = {
     triggeredBy?: string
     previousStage?: string
     newStage?: string
+    before?: Record<string, unknown>
   }
   timestamp: string
 }
@@ -220,7 +221,7 @@ export async function emitClientCreated(client: Record<string, unknown>, source:
 }
 
 export async function emitClientUpdated(client: Record<string, unknown>, before?: Record<string, unknown>, triggeredBy?: string): Promise<void> {
-  await emitEvent({ type: "client.updated", data: client, metadata: { before: before as unknown as string, triggeredBy }, timestamp: new Date().toISOString() })
+  await emitEvent({ type: "client.updated", data: client, metadata: { before, triggeredBy }, timestamp: new Date().toISOString() })
 }
 
 export async function emitContactCreated(contact: Record<string, unknown>, source: string = "manual"): Promise<void> {
