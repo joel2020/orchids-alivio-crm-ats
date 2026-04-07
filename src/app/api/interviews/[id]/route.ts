@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { requireApiAuth } from "@/lib/auth"
 
 const validTransitions: Record<string, string[]> = {
   scheduled: ["completed", "canceled", "no_show"],
@@ -17,11 +12,16 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiAuth(request, "readonly")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   const { id } = await params
 
   const { data, error } = await supabase
     .from("interviews")
     .select("*, applications(*, candidates(*), jobs(*, projects(*, clients(*))))")
+    .eq("account_id", accountId)
     .eq("id", id)
     .single()
 
@@ -36,12 +36,17 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiAuth(request, "recruiter")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   const { id } = await params
   const body = await request.json()
 
   const { data: current } = await supabase
     .from("interviews")
     .select("status")
+    .eq("account_id", accountId)
     .eq("id", id)
     .single()
 
@@ -58,6 +63,7 @@ export async function PATCH(
   const { data, error } = await supabase
     .from("interviews")
     .update(body)
+    .eq("account_id", accountId)
     .eq("id", id)
     .select()
     .single()
@@ -68,6 +74,7 @@ export async function PATCH(
 
   if (body.status === "completed") {
     await supabase.from("activities").insert({
+      account_id: accountId,
       object_type: "interview",
       object_id: id,
       type: "interview_completed",
@@ -82,11 +89,16 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiAuth(request, "admin")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   const { id } = await params
 
   const { error } = await supabase
     .from("interviews")
     .delete()
+    .eq("account_id", accountId)
     .eq("id", id)
 
   if (error) {

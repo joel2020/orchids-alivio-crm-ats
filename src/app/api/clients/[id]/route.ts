@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { requireApiAuth } from "@/lib/auth"
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiAuth(request, "readonly")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   const { id } = await params
 
   const [clientRes, contactsRes, projectsRes, activitiesRes] = await Promise.all([
-    supabase.from("clients").select("*").eq("id", id).single(),
-    supabase.from("client_contacts").select("*").eq("client_id", id).order("created_at", { ascending: false }),
-    supabase.from("projects").select("*").eq("client_id", id).order("created_at", { ascending: false }),
-    supabase.from("activities").select("*").eq("object_type", "client").eq("object_id", id).order("created_at", { ascending: false }).limit(20)
+    supabase.from("clients").select("*").eq("id", id).eq("account_id", accountId).single(),
+    supabase.from("client_contacts").select("*").eq("client_id", id).eq("account_id", accountId).order("created_at", { ascending: false }),
+    supabase.from("projects").select("*").eq("client_id", id).eq("account_id", accountId).order("created_at", { ascending: false }),
+    supabase.from("activities").select("*").eq("object_type", "client").eq("object_id", id).eq("account_id", accountId).order("created_at", { ascending: false }).limit(20)
   ])
 
   if (clientRes.error) {
@@ -35,6 +34,10 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiAuth(request, "recruiter")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   const { id } = await params
   const body = await request.json()
   const { updated_at: clientUpdatedAt, ...updateData } = body
@@ -43,6 +46,7 @@ export async function PATCH(
     .from("clients")
     .select("updated_at")
     .eq("id", id)
+    .eq("account_id", accountId)
     .single()
 
   if (clientUpdatedAt && current?.updated_at && new Date(clientUpdatedAt) < new Date(current.updated_at)) {
@@ -56,6 +60,7 @@ export async function PATCH(
     .from("clients")
     .update({ ...updateData, updated_at: new Date().toISOString() })
     .eq("id", id)
+    .eq("account_id", accountId)
     .select()
     .single()
 
@@ -70,12 +75,17 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiAuth(request, "admin")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   const { id } = await params
 
   const { error } = await supabase
     .from("clients")
     .delete()
     .eq("id", id)
+    .eq("account_id", accountId)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 })
