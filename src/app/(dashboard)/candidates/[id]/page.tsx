@@ -54,14 +54,22 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault()
-    await supabase.from("candidates").update(editCandidate).eq("id", id)
+    await fetch(`/api/candidates/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editCandidate),
+    })
     setEditMode(false)
     fetchData()
   }
 
   async function handleAddApplication(e: React.FormEvent) {
     e.preventDefault()
-    await supabase.from("applications").insert([{ candidate_id: id, job_id: selectedJobId, status: "new", stage: "applied" }])
+    await fetch("/api/applications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidate_id: id, job_id: selectedJobId, status: "new", stage: "applied" }),
+    })
     setSelectedJobId("")
     setAppDialogOpen(false)
     fetchData()

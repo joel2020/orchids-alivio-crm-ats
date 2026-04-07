@@ -39,7 +39,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
-import { emitClientCreated } from "@/lib/events"
 
 const SIZE_BANDS = ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"]
 const INDUSTRIES = ["Technology", "Healthcare", "Finance", "Manufacturing", "Retail", "Other"]
@@ -214,20 +213,24 @@ export default function ClientsPage() {
       return
     }
 
-    const { data, error } = await supabase.from("clients").insert([formData]).select().single()
-    
-    if (error) {
-      setError(error.message)
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    })
+
+    const result = await res.json()
+
+    if (!res.ok) {
+      setError(result.error || "Failed to create client")
       setSubmitting(false)
       return
     }
 
-    await emitClientCreated(data)
-
     setFormData({ name: "", website: "", size_band: "", industry: "", region: "", status: "prospect", tier: "B", billing_email: "" })
     setDialogOpen(false)
     setSubmitting(false)
-    router.push(`/clients/${data.id}`)
+    router.push(`/clients/${result.id}`)
   }
 
   function handleSort(field: SortField) {

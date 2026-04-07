@@ -45,13 +45,21 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
   }
 
   async function handleStatusChange(newStatus: string) {
-    await supabase.from("applications").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", id)
+    await fetch(`/api/applications/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    })
     fetchData()
   }
 
   async function handleAddInterview(e: React.FormEvent) {
     e.preventDefault()
-    await supabase.from("interviews").insert([{ application_id: id, ...interviewForm }])
+    await fetch("/api/interviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ application_id: id, ...interviewForm }),
+    })
     setInterviewForm({ stage: "", start_time: "", status: "scheduled" })
     setInterviewDialogOpen(false)
     fetchData()

@@ -60,25 +60,23 @@ export default function CandidatesPage() {
       return
     }
 
-    const { data, error } = await supabase.from("candidates").insert([formData]).select().single()
-    
-    if (error) {
-      setError(error.message)
+    const res = await fetch("/api/candidates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    })
+    const result = await res.json()
+
+    if (!res.ok) {
+      setError(result.error || "Failed to create candidate")
       setSubmitting(false)
       return
     }
 
-    await supabase.from("activities").insert({
-      object_type: "candidate",
-      object_id: data.id,
-      type: "candidate_created",
-      payload: { name: data.full_name }
-    })
-
     setFormData({ full_name: "", email: "", phone: "", linkedin_url: "", location: "", current_title: "", current_company: "", source: "" })
     setDialogOpen(false)
     setSubmitting(false)
-    router.push(`/candidates/${data.id}`)
+    router.push(`/candidates/${result.id}`)
   }
 
   function handleResumeComplete(candidateId: string) {
