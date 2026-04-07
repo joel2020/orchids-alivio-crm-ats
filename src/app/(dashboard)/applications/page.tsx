@@ -53,17 +53,13 @@ export default function ApplicationsPage() {
   }
 
   async function updateStage(id: string, newStage: ApplicationStage, newPosition: number) {
-    await supabase.from("applications").update({ 
-      stage: newStage, 
-      position: newPosition,
-      updated_at: new Date().toISOString() 
-    }).eq("id", id)
-    
-    await supabase.from("activities").insert({
-      object_type: "application",
-      object_id: id,
-      type: "stage_changed",
-      payload: { new_stage: newStage }
+    await fetch(`/api/applications/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        stage: newStage,
+        position: newPosition,
+      }),
     })
     
     fetchApplications()

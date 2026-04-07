@@ -17,7 +17,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { emitContactCreated, emitOpportunityCreated, emitClientUpdated } from "@/lib/events"
 
 type JobWithProject = Job & { projects: Project }
 type OpportunityWithContact = Opportunity & { primary_contact?: ClientContact }
@@ -132,9 +131,11 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 
   async function handleUpdateClient(e: React.FormEvent) {
     e.preventDefault()
-    const before = { ...client }
-    await supabase.from("clients").update({ ...editClient, updated_at: new Date().toISOString() }).eq("id", id)
-    await emitClientUpdated(editClient as Record<string, unknown>, before as Record<string, unknown>)
+    await fetch(`/api/clients/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editClient),
+    })
     setEditMode(false)
     fetchData()
   }
@@ -145,8 +146,10 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       ? `${contactForm.first_name} ${contactForm.last_name}` 
       : contactForm.name
 
-    const { data, error } = await supabase.from("client_contacts").insert([{
-      client_id: id,
+    await fetch(`/api/clients/${id}/contacts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
       name: fullName,
       full_name: fullName,
       first_name: contactForm.first_name,
@@ -160,11 +163,8 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       linkedin_url: contactForm.linkedin_url,
       notes: contactForm.notes,
       is_primary_contact: contactForm.is_primary_contact,
-    }]).select().single()
-
-    if (!error && data) {
-      await emitContactCreated({ ...data, client_id: id })
-    }
+      }),
+    })
 
     setContactForm({ name: "", first_name: "", last_name: "", email: "", phone: "", title: "", department: "", seniority: "", is_decision_maker: false, linkedin_url: "", notes: "", is_primary_contact: false })
     setContactDialogOpen(false)
@@ -173,8 +173,10 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 
   async function handleAddOpportunity(e: React.FormEvent) {
     e.preventDefault()
-    const { data, error } = await supabase.from("opportunities").insert([{
-      client_id: id,
+    await fetch(`/api/clients/${id}/opportunities`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
       name: oppForm.name,
       stage: oppForm.stage,
       value: oppForm.value ? Number(oppForm.value) : null,
@@ -182,11 +184,8 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       expected_close_date: oppForm.expected_close_date || null,
       source: oppForm.source || null,
       primary_contact_id: oppForm.primary_contact_id || null,
-    }]).select().single()
-
-    if (!error && data) {
-      await emitOpportunityCreated({ ...data, client_id: id })
-    }
+      }),
+    })
 
     setOppForm({ name: "", stage: "lead", value: "", probability: "20", expected_close_date: "", source: "", primary_contact_id: "" })
     setOppDialogOpen(false)
@@ -195,17 +194,18 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 
   async function handleLogActivity(e: React.FormEvent) {
     e.preventDefault()
-    await supabase.from("activities").insert([{
-      client_id: id,
-      object_type: "client",
-      object_id: id,
+    await fetch(`/api/clients/${id}/activities`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
       type: activityForm.type,
       subject: activityForm.subject,
       body: activityForm.body,
       direction: activityForm.direction || null,
       source: "manual",
       timestamp: new Date().toISOString(),
-    }])
+      }),
+    })
     setActivityForm({ type: "note", subject: "", body: "", direction: "" })
     setActivityDialogOpen(false)
     fetchData()

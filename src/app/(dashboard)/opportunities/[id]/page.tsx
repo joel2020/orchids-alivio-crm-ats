@@ -53,20 +53,21 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
   async function handleStageChange(stage: OpportunityStage) {
     if (!opportunity) return
-    await supabase.from("opportunities").update({ stage, updated_at: new Date().toISOString() }).eq("id", id)
-    await supabase.from("activities").insert({
-      object_type: "opportunity",
-      object_id: id,
-      type: "stage_changed",
-      payload: { old_stage: opportunity.stage, new_stage: stage }
+    await fetch(`/api/opportunities/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage }),
     })
     fetchData()
   }
 
   async function handleAddNote() {
     if (!newNote.trim()) return
-    await supabase.from("notes").insert({ entity_type: "opportunity", entity_id: id, content: newNote })
-    await supabase.from("activities").insert({ object_type: "opportunity", object_id: id, type: "note_added", payload: {} })
+    await fetch(`/api/opportunities/${id}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: newNote }),
+    })
     setNewNote("")
     fetchData()
   }

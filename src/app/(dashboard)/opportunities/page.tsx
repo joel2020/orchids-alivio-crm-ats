@@ -17,7 +17,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { emitOpportunityCreated, emitOpportunityStageChanged } from "@/lib/events"
 
 type OpportunityWithRelations = Opportunity & { clients: Client | null; primary_contact: ClientContact | null }
 
@@ -93,7 +92,10 @@ export default function OpportunitiesPage() {
       return
     }
 
-    const { data, error } = await supabase.from("opportunities").insert([{
+    const res = await fetch("/api/opportunities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
       name: formData.name,
       client_id: formData.client_id || null,
       primary_contact_id: formData.primary_contact_id || null,
@@ -102,15 +104,15 @@ export default function OpportunitiesPage() {
       probability: Number(formData.probability),
       expected_close_date: formData.expected_close_date || null,
       source: formData.source || null,
-    }]).select().single()
+      }),
+    })
+    const result = await res.json()
 
-    if (error) {
-      setError(error.message)
+    if (!res.ok) {
+      setError(result.error || "Failed to create opportunity")
       setSubmitting(false)
       return
     }
-
-    await emitOpportunityCreated(data)
 
     setFormData({ name: "", client_id: "", primary_contact_id: "", stage: "lead", value: "", probability: "10", expected_close_date: "", source: "" })
     setDialogOpen(false)
@@ -118,18 +120,16 @@ export default function OpportunitiesPage() {
     fetchData()
   }
 
-  async function updateStage(id: string, previousStage: string, newStage: OpportunityStage) {
-    await supabase.from("opportunities").update({ 
-      stage: newStage, 
-      probability: stageProbabilities[newStage],
-      updated_at: new Date().toISOString(),
-      actual_close_date: newStage === "won" || newStage === "lost" ? new Date().toISOString() : null,
-    }).eq("id", id)
-    
-    const opp = opportunities.find(o => o.id === id)
-    if (opp) {
-      await emitOpportunityStageChanged({ ...opp, stage: newStage }, previousStage, newStage)
-    }
+  async function updateStage(id: string, newStage: OpportunityStage) {
+    await fetch(`/api/opportunities/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        stage: newStage,
+        probability: stageProbabilities[newStage],
+        actual_close_date: newStage === "won" || newStage === "lost" ? new Date().toISOString() : null,
+      }),
+    })
     
     fetchData()
   }
@@ -144,7 +144,7 @@ export default function OpportunitiesPage() {
     const id = e.dataTransfer.getData("text/plain")
     const opp = opportunities.find(o => o.id === id)
     if (id && dragging && opp && opp.stage !== stage) {
-      updateStage(id, opp.stage, stage)
+      updateStage(id, stage)
     }
     setDragging(null)
   }
