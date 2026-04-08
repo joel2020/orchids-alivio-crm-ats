@@ -8,8 +8,9 @@ import {
   emitResumeUploadActivity,
 } from "@/lib/events"
 import { createHash } from "crypto"
+import { requireApiAuth } from "@/lib/auth"
 
-const supabase = createClient(
+const serviceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
@@ -26,10 +27,11 @@ function getFileHash(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex")
 }
 
-async function findCandidateByEmail(email: string) {
-  const { data } = await supabase
+async function findCandidateByEmail(email: string, accountId: string) {
+  const { data } = await serviceSupabase
     .from("candidates")
     .select("*")
+    .eq("account_id", accountId)
     .ilike("email", email)
     .single()
   return data
@@ -37,26 +39,33 @@ async function findCandidateByEmail(email: string) {
 
 async function findCandidateByNameAndLinkedIn(
   fullName: string,
-  linkedinUrl: string | null
+  linkedinUrl: string | null,
+  accountId: string
 ) {
   if (linkedinUrl) {
-    const { data } = await supabase
+    const { data } = await serviceSupabase
       .from("candidates")
       .select("*")
+      .eq("account_id", accountId)
       .ilike("linkedin_url", linkedinUrl)
       .single()
     if (data) return data
   }
 
-  const { data } = await supabase
+  const { data } = await serviceSupabase
     .from("candidates")
     .select("*")
+    .eq("account_id", accountId)
     .ilike("full_name", fullName)
     .single()
   return data
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireApiAuth(request, "recruiter")
+  if (auth.response) return auth.response
+  const { accountId } = auth.context!
+
   try {
     const formData = await request.formData()
     const files = formData.getAll("files") as File[]
@@ -102,7 +111,7 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(await file.arrayBuffer())
       const fileHash = getFileHash(buffer)
 
-      const { data: existingFile } = await supabase
+      const { data: existingFile } = await serviceSupabase
         .from("resume_files")
         .select("id")
         .eq("file_hash", fileHash)
@@ -120,7 +129,7 @@ export async function POST(request: NextRequest) {
 
       const storagePath = `resumes/${Date.now()}_${file.name}`
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await serviceSupabase.storage
         .from("resumes")
         .upload(storagePath, buffer, {
           contentType: file.type,
@@ -136,7 +145,7 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      const { data: resumeFile, error: fileInsertError } = await supabase
+      const { data: resumeFile, error: fileInsertError } = await serviceSupabase
         .from("resume_files")
         .insert({
           file_name: file.name,
@@ -144,6 +153,7 @@ export async function POST(request: NextRequest) {
           file_size: file.size,
           storage_path: storagePath,
           file_hash: fileHash,
+          account_id: accountId,
         })
         .select()
         .single()
@@ -158,13 +168,14 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      const { data: parseJob, error: jobInsertError } = await supabase
+      const { data: parseJob, error: jobInsertError } = await serviceSupabase
         .from("resume_parse_jobs")
         .insert({
           resume_file_id: resumeFile.id,
           status: "pending",
           job_id: jobId,
           project_id: projectId,
+          account_id: accountId,
         })
         .select()
         .single()
@@ -185,7 +196,7 @@ export async function POST(request: NextRequest) {
         status: "pending",
       })
 
-      processResumeAsync(parseJob.id, buffer, file.type, jobId, projectId)
+      processResumeAsync(parseJob.id, buffer, file.type, jobId, projectId, accountId)
     }
 
     return NextResponse.json({ results }, { status: 200 })
@@ -203,12 +214,14 @@ async function processResumeAsync(
   fileBuffer: Buffer,
   fileType: string,
   jobId: string | null,
-  projectId: string | null
+  projectId: string | null,
+  accountId: string
 ) {
   try {
-    await supabase
+    await serviceSupabase
       .from("resume_parse_jobs")
       .update({ status: "processing", updated_at: new Date().toISOString() })
+            .eq("account_id", accountId)
       .eq("id", parseJobId)
 
     const { data: parsedData, confidence, provider } = await parseResume(
@@ -220,13 +233,14 @@ async function processResumeAsync(
 
     let existingCandidate = null
     if (parsedData.primaryEmail) {
-      existingCandidate = await findCandidateByEmail(parsedData.primaryEmail)
+      existingCandidate = await findCandidateByEmail(parsedData.primaryEmail, accountId)
     }
 
     if (!existingCandidate && parsedData.fullName) {
       existingCandidate = await findCandidateByNameAndLinkedIn(
         parsedData.fullName,
-        parsedData.linkedinUrl
+        parsedData.linkedinUrl,
+        accountId
       )
     }
 
@@ -251,14 +265,16 @@ async function processResumeAsync(
       }
 
       if (Object.keys(updates).length > 0) {
-        await supabase
+        await serviceSupabase
           .from("candidates")
           .update(updates)
+                    .eq("account_id", accountId)
           .eq("id", candidateId)
 
-        const { data: updatedCandidate } = await supabase
+        const { data: updatedCandidate } = await serviceSupabase
           .from("candidates")
           .select("*")
+                    .eq("account_id", accountId)
           .eq("id", candidateId)
           .single()
 
@@ -267,7 +283,7 @@ async function processResumeAsync(
         }
       }
     } else {
-      const { data: newCandidate, error: candidateError } = await supabase
+      const { data: newCandidate, error: candidateError } = await serviceSupabase
         .from("candidates")
         .insert({
           full_name: parsedData.fullName || "Unknown",
@@ -278,6 +294,7 @@ async function processResumeAsync(
           current_title: parsedData.currentTitle,
           current_company: parsedData.currentCompany,
           source: "resume_upload",
+          account_id: accountId,
         })
         .select()
         .single()
@@ -291,33 +308,37 @@ async function processResumeAsync(
       await emitCandidateCreated(newCandidate, "resume_upload")
     }
 
-    await supabase
+    await serviceSupabase
       .from("resume_files")
       .update({ candidate_id: candidateId })
+            .eq("account_id", accountId)
       .eq("id", (
-        await supabase
+        await serviceSupabase
           .from("resume_parse_jobs")
           .select("resume_file_id")
-          .eq("id", parseJobId)
+                .eq("account_id", accountId)
+      .eq("id", parseJobId)
           .single()
       ).data?.resume_file_id)
 
     if (jobId && candidateId) {
-      const { data: existingApp } = await supabase
+      const { data: existingApp } = await serviceSupabase
         .from("applications")
         .select("id")
+                .eq("account_id", accountId)
         .eq("candidate_id", candidateId)
         .eq("job_id", jobId)
         .single()
 
       if (!existingApp) {
-        const { data: newApplication } = await supabase
+        const { data: newApplication } = await serviceSupabase
           .from("applications")
           .insert({
             candidate_id: candidateId,
             job_id: jobId,
-            stage: "applied",
+            stage: "sourced",
             status: "new",
+            account_id: accountId,
           })
           .select()
           .single()
@@ -333,7 +354,7 @@ async function processResumeAsync(
 
     await emitResumeUploadActivity(candidateId!, jobId, projectId, confidence)
 
-    await supabase
+    await serviceSupabase
       .from("resume_parse_jobs")
       .update({
         status: "completed",
@@ -343,10 +364,11 @@ async function processResumeAsync(
         parser_provider: provider,
         updated_at: new Date().toISOString(),
       })
+            .eq("account_id", accountId)
       .eq("id", parseJobId)
   } catch (error) {
     console.error("Resume processing error:", error)
-    await supabase
+    await serviceSupabase
       .from("resume_parse_jobs")
       .update({
         status: "failed",
@@ -354,6 +376,7 @@ async function processResumeAsync(
           error instanceof Error ? error.message : "Unknown error",
         updated_at: new Date().toISOString(),
       })
+            .eq("account_id", accountId)
       .eq("id", parseJobId)
   }
 }

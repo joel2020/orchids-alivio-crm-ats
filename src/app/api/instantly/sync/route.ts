@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { requireApiAuth } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
+  const auth = await requireApiAuth(request, "admin")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   try {
     const body = await request.json()
     const { connection_id } = body
@@ -18,6 +17,7 @@ export async function POST(request: NextRequest) {
     const { data: connection, error: connError } = await supabase
       .from("instantly_connections")
       .select("api_key_encrypted")
+      .eq("account_id", accountId)
       .eq("id", connection_id)
       .single()
 
@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
             .from("instantly_campaigns")
             .upsert({
               connection_id,
+              account_id: accountId,
               instantly_campaign_id: campaign.id,
               name: campaign.name || "",
               status: campaign.status || "unknown",
@@ -94,6 +95,7 @@ export async function POST(request: NextRequest) {
             .from("instantly_prospects")
             .upsert({
               connection_id,
+              account_id: accountId,
               instantly_prospect_id: lead.id || lead.email,
               email: lead.email,
               first_name: lead.first_name || lead.firstName || null,
@@ -143,6 +145,8 @@ export async function POST(request: NextRequest) {
     await supabase
       .from("instantly_connections")
       .update({ last_synced_at: new Date().toISOString() })
+      .eq("account_id", accountId)
+      .eq("account_id", accountId)
       .eq("id", connection_id)
 
     return NextResponse.json({

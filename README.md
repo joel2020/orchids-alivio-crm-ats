@@ -34,3 +34,20 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Authentication & Authorization (Supabase)
+
+- Dashboard pages are guarded in `src/app/(dashboard)/layout.tsx` and require a valid Supabase session plus `account_id` claim.
+- API handlers use `requireApiAuth` from `src/lib/auth.ts`.
+- Role model: `readonly < recruiter < admin`.
+- Account scoping is enforced in API queries by `account_id` filters and account-aware inserts.
+- Requests now forward the user bearer token to Supabase (`Authorization: Bearer <token>`) to align with future Postgres RLS policies.
+
+### Required JWT claims
+
+Set these claims in Supabase Auth metadata (app_metadata preferred):
+
+- `account_id` (string)
+- `role` (`admin` | `recruiter` | `readonly`)
+
+This keeps authorization colocated with auth identity and prepares API traffic for RLS policy checks.
