@@ -336,7 +336,7 @@ async function processResumeAsync(
           .insert({
             candidate_id: candidateId,
             job_id: jobId,
-            stage: "applied",
+            stage: "sourced",
             status: "new",
             account_id: accountId,
           })

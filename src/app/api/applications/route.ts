@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (view === "board" && jobId) {
-    const stages = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected']
+    const stages = ['sourced', 'contacted', 'replied', 'qualified', 'submitted', 'client_interview', 'final_interview', 'offer', 'placed', 'rejected', 'nurture']
     const board = stages.reduce((acc, s) => {
       acc[s] = (data || []).filter(app => app.stage === s).sort((a, b) => a.position - b.position)
       return acc
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (existing) {
-    return NextResponse.json({ error: "Candidate has already applied for this job" }, { status: 400 })
+    return NextResponse.json({ error: "Candidate is already in this job pipeline" }, { status: 400 })
   }
 
   const { data: jobExists } = await supabase
@@ -78,14 +78,14 @@ export async function POST(request: NextRequest) {
     .from("applications")
     .select("*", { count: "exact", head: true })
     .eq("account_id", accountId)
-    .eq("stage", body.stage || "applied")
+    .eq("stage", body.stage || "sourced")
 
   const { data, error } = await supabase
     .from("applications")
     .insert([{
       ...body,
       account_id: accountId,
-      stage: body.stage || "applied",
+      stage: body.stage || "sourced",
       position: count || 0
     }])
     .select("*, candidates(*), jobs(*)")
