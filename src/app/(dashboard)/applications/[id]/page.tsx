@@ -44,8 +44,8 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
     setActivities(activitiesRes.data || [])
   }
 
-  async function handleStatusChange(newStatus: string) {
-    await supabase.from("applications").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", id)
+  async function handleStageChange(newStage: string) {
+    await supabase.from("applications").update({ stage: newStage, updated_at: new Date().toISOString() }).eq("id", id)
     fetchData()
   }
 
@@ -67,7 +67,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
           <h1 className="text-2xl font-semibold tracking-tight">Application</h1>
           <p className="text-muted-foreground">{application.candidates?.full_name} for {application.jobs?.title}</p>
         </div>
-        <Select value={application.status || "applied"} onValueChange={handleStatusChange}>
+        <Select value={application.stage || "sourced"} onValueChange={handleStageChange}>
           <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
             {APPLICATION_STAGES.map((s: ApplicationStage) => (<SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>))}

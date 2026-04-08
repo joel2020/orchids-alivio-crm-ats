@@ -85,7 +85,7 @@ export type Candidate = {
   created_at: string
 }
 
-export type ApplicationStage = 'applied' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected'
+export type ApplicationStage = 'sourced' | 'contacted' | 'replied' | 'qualified' | 'submitted' | 'client_interview' | 'final_interview' | 'offer' | 'placed' | 'rejected' | 'nurture'
 
 export type Application = {
   id: string
@@ -398,12 +398,17 @@ export const CONTACT_SENIORITIES: ContactSeniority[] = ['c_level', 'vp', 'direct
 export const PLACEMENT_STATUSES = ['pending', 'confirmed', 'started', 'completed', 'cancelled'] as const
 
 export const APPLICATION_STAGES: ApplicationStage[] = [
-  'applied',
-  'screening',
-  'interview',
+  'sourced',
+  'contacted',
+  'replied',
+  'qualified',
+  'submitted',
+  'client_interview',
+  'final_interview',
   'offer',
-  'hired',
-  'rejected'
+  'placed',
+  'rejected',
+  'nurture'
 ]
 
 export const JOB_STATUSES = ['draft', 'open', 'paused', 'closed', 'filled'] as const

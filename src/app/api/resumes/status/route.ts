@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { requireApiAuth } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
+  const auth = await requireApiAuth(request, "readonly")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   try {
     const { searchParams } = new URL(request.url)
     const jobIds = searchParams.getAll("jobIds[]")
@@ -30,6 +29,7 @@ export async function GET(request: NextRequest) {
         resume_files(file_name, file_type, file_size),
         candidates(id, full_name, email)
       `)
+            .eq("account_id", accountId)
       .in("id", jobIds)
 
     if (error) {

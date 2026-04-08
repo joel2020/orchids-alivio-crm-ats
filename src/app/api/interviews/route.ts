@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { requireApiAuth } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
+  const auth = await requireApiAuth(request, "readonly")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   const { searchParams } = new URL(request.url)
   const applicationId = searchParams.get("application_id")
   const status = searchParams.get("status")
@@ -17,6 +16,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("interviews")
     .select("*, applications(*, candidates(*), jobs(*, projects(*, clients(*))))")
+    .eq("account_id", accountId)
     .order("start_time", { ascending: true })
 
   if (applicationId) query = query.eq("application_id", applicationId)
@@ -35,6 +35,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireApiAuth(request, "recruiter")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   const body = await request.json()
 
   if (!body.application_id) {
@@ -53,6 +57,7 @@ export async function POST(request: NextRequest) {
   const { data: appExists } = await supabase
     .from("applications")
     .select("id")
+    .eq("account_id", accountId)
     .eq("id", body.application_id)
     .single()
 
@@ -64,6 +69,7 @@ export async function POST(request: NextRequest) {
     .from("interviews")
     .insert([{
       ...body,
+      account_id: accountId,
       status: body.status || "scheduled"
     }])
     .select("*, applications(*, candidates(*), jobs(*))")
@@ -74,10 +80,11 @@ export async function POST(request: NextRequest) {
   }
 
   await supabase.from("activities").insert({
+    account_id: accountId,
     object_type: "interview",
     object_id: data.id,
     type: "interview_scheduled",
-    payload: { 
+    payload: {
       candidate_name: data.applications?.candidates?.full_name,
       job_title: data.applications?.jobs?.title,
       start_time: data.start_time

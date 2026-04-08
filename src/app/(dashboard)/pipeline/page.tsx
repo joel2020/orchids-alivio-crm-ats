@@ -55,7 +55,7 @@ function PipelineContent() {
             <SelectItem value="all">All Stages</SelectItem>
             {APPLICATION_STAGES.map((stage) => (
               <SelectItem key={stage} value={stage}>
-                {stage}
+                {stage.replace(/_/g, " ")}
               </SelectItem>
             ))}
           </SelectContent>
@@ -70,7 +70,7 @@ function PipelineContent() {
             <Card key={stage} className="flex flex-col">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium flex items-center justify-between">
-                  <span className="capitalize">{stage}</span>
+                  <span className="capitalize">{stage.replace(/_/g, " ")}</span>
                   <Badge variant="secondary" className="ml-2">
                     {groupedApplications[stage]?.length || 0}
                   </Badge>

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { requireApiAuth } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
+  const auth = await requireApiAuth(request, "readonly")
+  if (auth.response) return auth.response
+  const { supabase, accountId } = auth.context!
+
   const { searchParams } = new URL(request.url)
   const objectType = searchParams.get("object_type")
   const activityType = searchParams.get("activity_type")
@@ -17,6 +16,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("activities")
     .select("*")
+    .eq("account_id", accountId)
     .order("created_at", { ascending: false })
     .limit(limit)
 
@@ -35,6 +35,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireApiAuth(request, "recruiter")
+  if (auth.response) return auth.response
+  const { supabase, accountId, user } = auth.context!
+
   const body = await request.json()
 
   if (!body.object_type || !body.object_id || !body.type) {
@@ -43,7 +47,7 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from("activities")
-    .insert([body])
+    .insert([{ ...body, account_id: accountId, user_id: body.user_id ?? user.id }])
     .select()
     .single()
 
