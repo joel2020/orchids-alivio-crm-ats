@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server"
 import { handleDelete, handleGetById, handleUpdate } from "@/lib/api/crud"
-import { interviewsSchema } from "@/lib/api/schemas"
+import { contactsSchema } from "@/lib/api/schemas"
 
-const TABLE = "interviews"
+const TABLE = "contacts"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  return handleUpdate(request, TABLE, id, interviewsSchema)
+  return handleUpdate(request, TABLE, id, contactsSchema)
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

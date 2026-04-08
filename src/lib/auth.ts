@@ -1,17 +1,20 @@
 import { createClient, type User } from "@supabase/supabase-js"
 import { NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
+import { env } from "@/lib/env"
 
-export type AppRole = "admin" | "recruiter" | "readonly"
+export type AppRole = "admin" | "recruiter" | "bizdev" | "sourcer" | "readonly"
 
 const ROLE_WEIGHTS: Record<AppRole, number> = {
   readonly: 1,
-  recruiter: 2,
-  admin: 3,
+  sourcer: 2,
+  bizdev: 2,
+  recruiter: 3,
+  admin: 4,
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 function extractTokenFromSupabaseCookie(rawValue: string): string | null {
   try {
@@ -76,7 +79,7 @@ export async function extractAccessTokenFromCookieStore(): Promise<string | null
 
 export function resolveUserRole(user: User): AppRole {
   const role = user.app_metadata?.role ?? user.user_metadata?.role
-  if (role === "admin" || role === "recruiter" || role === "readonly") {
+  if (role === "admin" || role === "recruiter" || role === "bizdev" || role === "sourcer" || role === "readonly") {
     return role
   }
 
