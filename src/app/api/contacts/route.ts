@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server"
 import { handleCreate, handleList } from "@/lib/api/crud"
-import { interviewsSchema } from "@/lib/api/schemas"
+import { contactsSchema } from "@/lib/api/schemas"
 
-const TABLE = "interviews"
+const TABLE = "contacts"
 
 export async function GET(request: NextRequest) {
   return handleList(request, TABLE)
 }
 
 export async function POST(request: NextRequest) {
-  return handleCreate(request, TABLE, interviewsSchema)
+  return handleCreate(request, TABLE, contactsSchema)
 }
