@@ -19,12 +19,17 @@ type ApplicationWithRelations = Application & {
 }
 
 const stageColors: Record<string, string> = {
-  applied: "bg-blue-100 text-blue-800",
-  screening: "bg-purple-100 text-purple-800",
-  interview: "bg-yellow-100 text-yellow-800",
+  sourced: "bg-slate-100 text-slate-800",
+  contacted: "bg-blue-100 text-blue-800",
+  replied: "bg-cyan-100 text-cyan-800",
+  qualified: "bg-indigo-100 text-indigo-800",
+  submitted: "bg-purple-100 text-purple-800",
+  client_interview: "bg-amber-100 text-amber-800",
+  final_interview: "bg-orange-100 text-orange-800",
   offer: "bg-green-100 text-green-800",
-  hired: "bg-emerald-100 text-emerald-800",
+  placed: "bg-emerald-100 text-emerald-800",
   rejected: "bg-red-100 text-red-800",
+  nurture: "bg-pink-100 text-pink-800",
 }
 
 export default function ApplicationsPage() {
@@ -114,7 +119,7 @@ export default function ApplicationsPage() {
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Stages" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Stages</SelectItem>
-              {APPLICATION_STAGES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+              {APPLICATION_STAGES.map((s) => (<SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>))}
             </SelectContent>
           </Select>
         )}
@@ -134,7 +139,7 @@ export default function ApplicationsPage() {
               <Card className="h-full">
                 <CardHeader className="py-3 px-4">
                   <CardTitle className="text-sm font-medium flex items-center justify-between">
-                    <span className="capitalize">{stage}</span>
+                    <span className="capitalize">{stage.replace(/_/g, " ")}</span>
                     <Badge variant="secondary">{groupedByStage[stage]?.length || 0}</Badge>
                   </CardTitle>
                 </CardHeader>
@@ -184,7 +189,7 @@ export default function ApplicationsPage() {
                     <TableCell><Link href={`/applications/${app.id}`} className="font-medium hover:underline">{app.candidates?.full_name}</Link></TableCell>
                     <TableCell>{app.jobs?.title || "-"}</TableCell>
                     <TableCell>{app.jobs?.projects?.clients?.name || "-"}</TableCell>
-                    <TableCell><Badge className={stageColors[app.stage || "applied"]}>{app.stage}</Badge></TableCell>
+                    <TableCell><Badge className={stageColors[app.stage || "sourced"]}>{app.stage?.replace(/_/g, " ")}</Badge></TableCell>
                     <TableCell>{new Date(app.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>{new Date(app.updated_at).toLocaleDateString()}</TableCell>
                   </TableRow>

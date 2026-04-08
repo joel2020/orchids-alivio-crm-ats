@@ -46,6 +46,7 @@ const atsItems = [
 ]
 
 const systemItems = [
+  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Activities", href: "/activities", icon: Activity },
   { title: "Instantly", href: "/instantly", icon: Mail },
   { title: "Settings", href: "/settings", icon: Settings },
@@ -57,7 +58,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border px-4 py-3">
-        <Link href="/pipeline" className="flex items-center gap-2">
+        <Link href="/dashboard" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
             A
           </div>
