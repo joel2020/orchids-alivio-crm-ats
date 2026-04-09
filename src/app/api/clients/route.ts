@@ -1,5 +1,16 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
+import { z } from "zod"
 import { requireApiAuth } from "@/lib/auth"
+import { dataResponse, errorResponse, logApiError, parsePagination } from "@/lib/api/http"
+
+const clientCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  industry: z.string().trim().optional().nullable(),
+  website: z.string().trim().optional().nullable(),
+  region: z.string().trim().optional().nullable(),
+  status: z.string().trim().optional().nullable(),
+  owner_id: z.uuid().optional().nullable(),
+})
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, "readonly")
@@ -7,11 +18,9 @@ export async function GET(request: NextRequest) {
   const { supabase, accountId } = auth.context!
 
   const { searchParams } = new URL(request.url)
-  const search = searchParams.get("search")
+  const search = searchParams.get("search")?.trim()
   const industry = searchParams.get("industry")
-  const page = parseInt(searchParams.get("page") || "1")
-  const limit = parseInt(searchParams.get("limit") || "20")
-  const offset = (page - 1) * limit
+  const { page, limit, offset } = parsePagination(searchParams, { defaultLimit: 20, maxLimit: 200 })
 
   let query = supabase
     .from("clients")
@@ -28,19 +37,18 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error, count } = await query
-
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    logApiError("clients.GET", error, { accountId, search, industry })
+    return errorResponse(error.message)
   }
 
-  return NextResponse.json({
-    data,
+  return dataResponse(data ?? [], {
     pagination: {
       page,
       limit,
-      total: count || 0,
-      totalPages: Math.ceil((count || 0) / limit)
-    }
+      total: count ?? 0,
+      totalPages: Math.ceil((count ?? 0) / limit),
+    },
   })
 }
 
@@ -49,20 +57,21 @@ export async function POST(request: NextRequest) {
   if (auth.response) return auth.response
   const { supabase, accountId, user } = auth.context!
 
-  const body = await request.json()
-
-  if (!body.name) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 })
+  const parsed = clientCreateSchema.safeParse(await request.json())
+  if (!parsed.success) {
+    return errorResponse("Validation failed", { status: 422, details: parsed.error.flatten() })
   }
 
-  const { data, error } = await supabase
-    .from("clients")
-    .insert([{ ...body, account_id: accountId, owner_id: body.owner_id ?? user.id }])
-    .select()
-    .single()
+  const payload = {
+    ...parsed.data,
+    account_id: accountId,
+    owner_id: parsed.data.owner_id ?? user.id,
+  }
 
+  const { data, error } = await supabase.from("clients").insert([payload]).select().single()
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    logApiError("clients.POST", error, { accountId })
+    return errorResponse(error.message)
   }
 
   await supabase.from("activities").insert({
@@ -70,8 +79,8 @@ export async function POST(request: NextRequest) {
     object_type: "client",
     object_id: data.id,
     type: "client_created",
-    payload: { name: data.name }
+    payload: { name: data.name },
   })
 
-  return NextResponse.json(data, { status: 201 })
+  return dataResponse(data, { status: 201 })
 }
