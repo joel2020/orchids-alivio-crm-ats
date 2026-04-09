@@ -175,11 +175,20 @@ alter table public.tasks enable row level security;
 alter table public.activities enable row level security;
 
 create or replace function public.current_account_id() returns uuid language sql stable as $$
-  select nullif(auth.jwt() ->> 'account_id', '')::uuid
+  select coalesce(
+    nullif(auth.jwt() ->> 'account_id', ''),
+    nullif(auth.jwt() -> 'app_metadata' ->> 'account_id', ''),
+    nullif(auth.jwt() -> 'user_metadata' ->> 'account_id', '')
+  )::uuid
 $$;
 
 create or replace function public.current_role() returns text language sql stable as $$
-  select coalesce(auth.jwt() ->> 'role', 'readonly')
+  select coalesce(
+    nullif(auth.jwt() ->> 'role', ''),
+    nullif(auth.jwt() -> 'app_metadata' ->> 'role', ''),
+    nullif(auth.jwt() -> 'user_metadata' ->> 'role', ''),
+    'readonly'
+  )
 $$;
 
 do $$
