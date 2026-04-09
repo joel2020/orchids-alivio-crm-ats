@@ -1,0 +1,66 @@
+{
+  "name": "Candidate Intake and Follow-Up",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "recruiting/candidate-intake",
+        "responseMode": "onReceived"
+      },
+      "id": "WebhookCandidateIntake",
+      "name": "Webhook Candidate Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL}}/api/v1/webhooks/source-candidate",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendBody": true,
+        "bodyParametersJson": "={{$json}}"
+      },
+      "id": "ForwardToApi",
+      "name": "Forward to API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "hours"
+      },
+      "id": "WaitForFollowUp",
+      "name": "Wait 2 Hours",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [700, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.API_BASE_URL}}/api/v1/automations/follow-up-task",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendBody": true,
+        "bodyParametersJson": "={\"candidateId\": $json.candidateId, \"reason\": \"No recruiter action after intake\"}"
+      },
+      "id": "CreateFollowUpTask",
+      "name": "Create Follow-Up Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [940, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Candidate Intake": {
+      "main": [[{ "node": "Forward to API", "type": "main", "index": 0 }]]
+    },
+    "Forward to API": {
+      "main": [[{ "node": "Wait 2 Hours", "type": "main", "index": 0 }]]
+    },
+    "Wait 2 Hours": {
+      "main": [[{ "node": "Create Follow-Up Task", "type": "main", "index": 0 }]]
+    }
+  }
+}

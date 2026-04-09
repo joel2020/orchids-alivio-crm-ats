@@ -1,0 +1,12 @@
+{
+  "workflowName": "new_candidate_followup",
+  "trigger": "candidate.created",
+  "conditions": {
+    "stage": ["new_lead", "sourced"],
+    "noRecruiterTouchHours": 24
+  },
+  "actions": [
+    { "type": "task.create", "payload": { "title": "Review new candidate", "priority": "medium" } },
+    { "type": "prompt.run", "payload": { "template": "outreach-agent", "requiresHumanApproval": true } }
+  ]
+}
