@@ -3,8 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { Search, Filter, X, ArrowUpDown } from "lucide-react"
-import { supabase } from "@/lib/supabase"
-import { ClientContact, Client, CONTACT_SENIORITIES, ContactSeniority } from "@/lib/types"
+import { CONTACT_SENIORITIES, ContactSeniority } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -14,7 +13,24 @@ import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
 
-type ContactWithClient = ClientContact & { clients: Client | null }
+type ApiCompany = {
+  id: string
+  name: string
+  industry: string | null
+}
+
+type ApiContact = {
+  id: string
+  company_id: string
+  full_name: string
+  email: string
+  phone: string | null
+  title: string | null
+  is_decision_maker: boolean
+  created_at: string
+}
+
+type ContactWithClient = ApiContact & { clients: ApiCompany | null; seniority: ContactSeniority | null; is_primary_contact: boolean }
 
 const seniorityColors: Record<string, string> = {
   c_level: "bg-purple-100 text-purple-800",
@@ -29,6 +45,7 @@ const INDUSTRIES = ["Technology", "Healthcare", "Finance", "Manufacturing", "Ret
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<ContactWithClient[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [filterOpen, setFilterOpen] = useState(false)
   const [sortField, setSortField] = useState<string>("created_at")
@@ -43,55 +60,83 @@ export default function ContactsPage() {
 
   const fetchContacts = useCallback(async () => {
     setLoading(true)
-    
-    const { data: contactsData, error } = await supabase
-      .from("client_contacts")
-      .select("*, clients(*)")
-      .order(sortField, { ascending: sortDirection === "asc" })
+    setLoadError(null)
+    try {
+      const [contactsRes, companiesRes, submissionsRes] = await Promise.all([
+        fetch("/api/contacts?limit=200"),
+        fetch("/api/companies?limit=200"),
+        fetch("/api/submissions?limit=200"),
+      ])
+      const [contactsData, companiesData, submissionsData] = await Promise.all([
+        contactsRes.json(),
+        companiesRes.json(),
+        submissionsRes.json(),
+      ])
 
-    if (error) {
-      console.error(error)
+      if (!contactsRes.ok || !companiesRes.ok || !submissionsRes.ok) {
+        setLoadError("Failed to load contacts data")
+        setContacts([])
+        return
+      }
+
+      const companies = Array.isArray(companiesData) ? companiesData : []
+      const companyById = new Map(companies.map((company) => [company.id, company]))
+      const hasOpenOpportunityByContact = new Set(
+        (Array.isArray(submissionsData) ? submissionsData : [])
+          .filter((submission) => !["rejected", "accepted"].includes(submission.submission_status))
+          .map((submission) => submission.contact_id)
+          .filter(Boolean)
+      )
+
+      let filtered = (Array.isArray(contactsData) ? contactsData : []).map((contact) => ({
+        ...contact,
+        clients: companyById.get(contact.company_id) || null,
+        // Canonical contact model does not include these fields
+        seniority: null,
+        is_primary_contact: false,
+      })) as ContactWithClient[]
+
+      if (search) {
+        const searchLower = search.toLowerCase()
+        filtered = filtered.filter(c => 
+          c.full_name?.toLowerCase().includes(searchLower) ||
+          c.email?.toLowerCase().includes(searchLower) ||
+          c.clients?.name?.toLowerCase().includes(searchLower)
+        )
+      }
+
+      if (filters.seniority.length > 0) {
+        filtered = filtered.filter(c => c.seniority && filters.seniority.includes(c.seniority))
+      }
+
+      if (filters.industry) {
+        filtered = filtered.filter(c => c.clients?.industry === filters.industry)
+      }
+
+      if (filters.titleContains) {
+        filtered = filtered.filter(c => 
+          c.title?.toLowerCase().includes(filters.titleContains.toLowerCase())
+        )
+      }
+
+      if (filters.hasOpenOpportunity) {
+        filtered = filtered.filter(c => hasOpenOpportunityByContact.has(c.id))
+      }
+
+      filtered.sort((a, b) => {
+        const sortValueA = (a as Record<string, string | null>)[sortField] || ""
+        const sortValueB = (b as Record<string, string | null>)[sortField] || ""
+        if (sortDirection === "asc") return String(sortValueA).localeCompare(String(sortValueB))
+        return String(sortValueB).localeCompare(String(sortValueA))
+      })
+
+      setContacts(filtered)
+    } catch (error) {
+      setLoadError(String(error))
+      setContacts([])
+    } finally {
       setLoading(false)
-      return
     }
-
-    let filtered = (contactsData || []) as ContactWithClient[]
-
-    if (search) {
-      const searchLower = search.toLowerCase()
-      filtered = filtered.filter(c => 
-        c.name?.toLowerCase().includes(searchLower) ||
-        c.email?.toLowerCase().includes(searchLower) ||
-        c.clients?.name?.toLowerCase().includes(searchLower)
-      )
-    }
-
-    if (filters.seniority.length > 0) {
-      filtered = filtered.filter(c => c.seniority && filters.seniority.includes(c.seniority))
-    }
-
-    if (filters.industry) {
-      filtered = filtered.filter(c => c.clients?.industry === filters.industry)
-    }
-
-    if (filters.titleContains) {
-      filtered = filtered.filter(c => 
-        c.title?.toLowerCase().includes(filters.titleContains.toLowerCase())
-      )
-    }
-
-    if (filters.hasOpenOpportunity) {
-      const { data: oppsData } = await supabase
-        .from("opportunities")
-        .select("primary_contact_id")
-        .not("stage", "in", '("won","lost")')
-      
-      const contactIdsWithOpps = new Set((oppsData || []).map(o => o.primary_contact_id).filter(Boolean))
-      filtered = filtered.filter(c => contactIdsWithOpps.has(c.id))
-    }
-
-    setContacts(filtered)
-    setLoading(false)
   }, [search, filters, sortField, sortDirection])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
@@ -195,7 +240,7 @@ export default function ContactsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="cursor-pointer" onClick={() => handleSort("name")}>
+              <TableHead className="cursor-pointer" onClick={() => handleSort("full_name")}>
                 <div className="flex items-center gap-1">Name <ArrowUpDown className="h-3 w-3" /></div>
               </TableHead>
               <TableHead>Title</TableHead>
@@ -213,6 +258,10 @@ export default function ContactsPage() {
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading...</TableCell>
               </TableRow>
+            ) : loadError ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-8 text-destructive">{loadError}</TableCell>
+              </TableRow>
             ) : contacts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No contacts found</TableCell>
@@ -222,14 +271,14 @@ export default function ContactsPage() {
                 <TableRow key={contact.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{contact.name}</span>
+                      <span className="font-medium">{contact.full_name}</span>
                       {contact.is_primary_contact && <Badge variant="secondary" className="text-xs">Primary</Badge>}
                     </div>
                   </TableCell>
                   <TableCell>{contact.title || "-"}</TableCell>
                   <TableCell>
                     {contact.clients ? (
-                      <Link href={`/clients/${contact.client_id}`} className="hover:underline">{contact.clients.name}</Link>
+                      <Link href={`/clients/${contact.company_id}`} className="hover:underline">{contact.clients.name}</Link>
                     ) : "-"}
                   </TableCell>
                   <TableCell>
