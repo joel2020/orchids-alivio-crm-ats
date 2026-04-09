@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { supabase } from "@/lib/supabase"
 import { APPLICATION_STAGES, type Activity, type ApplicationStage } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +18,7 @@ type Metrics = {
 
 export default function OperationsDashboardPage() {
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<Metrics>({
     openOpportunities: 0,
     wonOpportunities: 0,
@@ -38,46 +38,67 @@ export default function OperationsDashboardPage() {
 
   async function fetchDashboardData() {
     setLoading(true)
-    const now = new Date()
-    const ytdStart = `${now.getUTCFullYear()}-01-01`
+    setLoadError(null)
+    try {
+      const now = new Date()
+      const ytdStart = `${now.getUTCFullYear()}-01-01`
 
-    const [
-      oppOpenRes,
-      oppWonRes,
-      jobsOpenRes,
-      appsStageRes,
-      interviewsUpcomingRes,
-      placementsRes,
-      activityRes,
-    ] = await Promise.all([
-      supabase.from("opportunities").select("id", { count: "exact", head: true }).not("stage", "in", '("won","lost")'),
-      supabase.from("opportunities").select("id", { count: "exact", head: true }).eq("stage", "won"),
-      supabase.from("jobs").select("id", { count: "exact", head: true }).eq("status", "open"),
-      supabase.from("applications").select("id, stage"),
-      supabase.from("interviews").select("id", { count: "exact", head: true }).gte("start_time", new Date().toISOString()).in("status", ["scheduled"]),
-      supabase.from("placements").select("id", { count: "exact", head: true }).gte("created_at", ytdStart),
-      supabase.from("activities").select("*").order("created_at", { ascending: false }).limit(12),
-    ])
+      const [jobsRes, submissionsRes, interviewsRes, placementsRes, activityRes] = await Promise.all([
+        fetch("/api/job_orders?limit=200"),
+        fetch("/api/submissions?limit=200"),
+        fetch("/api/interviews?limit=200"),
+        fetch("/api/placements?limit=200"),
+        fetch("/api/activities?limit=12"),
+      ])
 
-    const nextStageCounts = Object.fromEntries(APPLICATION_STAGES.map((stage) => [stage, 0])) as Record<ApplicationStage, number>
-    for (const row of appsStageRes.data || []) {
-      const stage = row.stage as ApplicationStage | null
-      if (stage && stage in nextStageCounts) {
-        nextStageCounts[stage] += 1
+      const [jobs, submissions, interviews, placements, activities] = await Promise.all([
+        jobsRes.json(),
+        submissionsRes.json(),
+        interviewsRes.json(),
+        placementsRes.json(),
+        activityRes.json(),
+      ])
+
+      if (!jobsRes.ok || !submissionsRes.ok || !interviewsRes.ok || !placementsRes.ok || !activityRes.ok) {
+        setLoadError("Some dashboard data could not be loaded from API endpoints.")
       }
-    }
 
-    setStageCounts(nextStageCounts)
-    setRecentActivity((activityRes.data || []) as Activity[])
-    setMetrics({
-      openOpportunities: oppOpenRes.count || 0,
-      wonOpportunities: oppWonRes.count || 0,
-      openJobs: jobsOpenRes.count || 0,
-      activeCandidates: (appsStageRes.data || []).length,
-      upcomingInterviews: interviewsUpcomingRes.count || 0,
-      placementsYtd: placementsRes.count || 0,
-    })
-    setLoading(false)
+      const jobsData = Array.isArray(jobs) ? jobs : []
+      const submissionsData = Array.isArray(submissions) ? submissions : []
+      const interviewsData = Array.isArray(interviews) ? interviews : []
+      const placementsData = Array.isArray(placements) ? placements : []
+      const activitiesData = Array.isArray(activities) ? activities : []
+
+      const nextStageCounts = Object.fromEntries(APPLICATION_STAGES.map((stage) => [stage, 0])) as Record<ApplicationStage, number>
+      for (const row of submissionsData) {
+        const stage = (row.stage ?? row.submission_status) as ApplicationStage | null
+        if (stage && stage in nextStageCounts) {
+          nextStageCounts[stage] += 1
+        }
+      }
+
+      setStageCounts(nextStageCounts)
+      setRecentActivity(activitiesData as Activity[])
+      setMetrics({
+        // Blocked by missing /api/opportunities endpoint
+        openOpportunities: 0,
+        wonOpportunities: 0,
+        openJobs: jobsData.filter((job) => job.status === "open").length,
+        activeCandidates: submissionsData.length,
+        upcomingInterviews: interviewsData.filter((interview) => {
+          const startsAt = interview.starts_at || interview.start_time
+          return startsAt && new Date(startsAt) >= new Date() && interview.status === "scheduled"
+        }).length,
+        placementsYtd: placementsData.filter((placement) => {
+          const createdAt = placement.created_at || placement.start_date
+          return createdAt && createdAt >= ytdStart
+        }).length,
+      })
+    } catch (error) {
+      setLoadError(String(error))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const stageSummary = useMemo(
@@ -90,6 +111,7 @@ export default function OperationsDashboardPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Operations Dashboard</h1>
         <p className="text-sm text-muted-foreground">Internal recruiting and delivery metrics.</p>
+        {loadError && <p className="text-sm text-destructive mt-1">{loadError}</p>}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

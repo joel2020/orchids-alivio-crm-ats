@@ -1,47 +1,96 @@
 "use client"
 
-import { useEffect, useState, Suspense } from "react"
-import { supabase } from "@/lib/supabase"
-import { Application, Job, Project, Client, Candidate, APPLICATION_STAGES } from "@/lib/types"
+import { useEffect, useState, Suspense, useCallback } from "react"
+import { APPLICATION_STAGES } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
 
-type ApplicationWithRelations = Application & {
-  candidates: Candidate
-  jobs: Job & { projects: Project & { clients: Client } }
+type PipelineSubmission = {
+  id: string
+  stage: string | null
+  candidate_id: string
+  job_order_id: string
+  candidates?: { id: string; full_name: string | null }
+  job_orders?: { id: string; title: string | null; companies?: { name: string | null } }
 }
 
 function PipelineContent() {
-  const [applications, setApplications] = useState<ApplicationWithRelations[]>([])
+  const [applications, setApplications] = useState<PipelineSubmission[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [stageFilter, setStageFilter] = useState<string>("all")
+
+  const fetchApplications = useCallback(async () => {
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const [submissionsRes, candidatesRes, jobOrdersRes, companiesRes] = await Promise.all([
+        fetch("/api/submissions?limit=200"),
+        fetch("/api/candidates?limit=200"),
+        fetch("/api/job_orders?limit=200"),
+        fetch("/api/companies?limit=200"),
+      ])
+
+      const [submissions, candidates, jobOrders, companies] = await Promise.all([
+        submissionsRes.json(),
+        candidatesRes.json(),
+        jobOrdersRes.json(),
+        companiesRes.json(),
+      ])
+
+      if (!submissionsRes.ok) {
+        setLoadError(submissions?.error || "Failed to load pipeline")
+        setApplications([])
+        return
+      }
+      if (!candidatesRes.ok || !jobOrdersRes.ok || !companiesRes.ok) {
+        setLoadError("Failed to load related pipeline data")
+        setApplications([])
+        return
+      }
+
+      const candidateById = new Map((Array.isArray(candidates) ? candidates : []).map((c) => [c.id, c]))
+      const companyById = new Map((Array.isArray(companies) ? companies : []).map((c) => [c.id, c]))
+      const jobOrderById = new Map((Array.isArray(jobOrders) ? jobOrders : []).map((j) => [j.id, j]))
+
+      let merged = (Array.isArray(submissions) ? submissions : []).map((submission) => {
+        const jobOrder = jobOrderById.get(submission.job_order_id)
+        return {
+          ...submission,
+          stage: submission.stage ?? submission.submission_status ?? null,
+          candidates: candidateById.get(submission.candidate_id) || null,
+          job_orders: jobOrder
+            ? {
+                ...jobOrder,
+                companies: jobOrder.company_id ? companyById.get(jobOrder.company_id) || null : null,
+              }
+            : null,
+        }
+      }) as PipelineSubmission[]
+
+      if (stageFilter !== "all") {
+        merged = merged.filter((app) => app.stage === stageFilter)
+      }
+
+      setApplications(merged)
+    } catch (error) {
+      setLoadError(String(error))
+      setApplications([])
+    } finally {
+      setLoading(false)
+    }
+  }, [stageFilter])
 
   useEffect(() => {
     fetchApplications()
-  }, [stageFilter])
-
-  async function fetchApplications() {
-    setLoading(true)
-    let query = supabase
-      .from("applications")
-      .select("*, candidates(*), jobs(*, projects(*, clients(*)))")
-      .order("created_at", { ascending: false })
-
-    if (stageFilter !== "all") {
-      query = query.eq("stage", stageFilter)
-    }
-
-    const { data } = await query
-    setApplications((data || []) as ApplicationWithRelations[])
-    setLoading(false)
-  }
+  }, [fetchApplications])
 
   const groupedApplications = APPLICATION_STAGES.reduce((acc, stage) => {
     acc[stage] = applications.filter((app) => app.stage === stage)
     return acc
-  }, {} as Record<string, ApplicationWithRelations[]>)
+  }, {} as Record<string, PipelineSubmission[]>)
 
   return (
     <div className="space-y-6">
@@ -64,6 +113,8 @@ function PipelineContent() {
 
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading pipeline...</div>
+      ) : loadError ? (
+        <div className="text-center py-12 text-destructive">{loadError}</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {APPLICATION_STAGES.map((stage) => (
@@ -93,10 +144,10 @@ function PipelineContent() {
                           {app.candidates?.full_name || "Unknown"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {app.jobs?.title || "No job"}
+                          {app.job_orders?.title || "No job"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {app.jobs?.projects?.clients?.name || "No client"}
+                          {app.job_orders?.companies?.name || "No client"}
                         </p>
                       </div>
                     </Link>

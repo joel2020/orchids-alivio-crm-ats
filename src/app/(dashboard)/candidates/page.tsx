@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Plus, Search, Upload } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 import { Candidate } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,7 +19,9 @@ const SOURCES = ["linkedin", "referral", "indeed", "website", "recruiter", "resu
 export default function CandidatesPage() {
   const router = useRouter()
   const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [allCandidates, setAllCandidates] = useState<Candidate[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [sourceFilter, setSourceFilter] = useState<string>("")
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -38,15 +39,46 @@ export default function CandidatesPage() {
     source: "",
   })
 
-  useEffect(() => { fetchCandidates() }, [search, sourceFilter])
+  useEffect(() => {
+    fetchCandidates()
+  }, [])
+
+  useEffect(() => {
+    const normalizedSearch = search.trim().toLowerCase()
+    const filtered = allCandidates.filter((candidate) => {
+      const matchesSearch = !normalizedSearch || [
+        candidate.full_name,
+        candidate.email,
+        candidate.current_title,
+      ].some((field) => field?.toLowerCase().includes(normalizedSearch))
+
+      const matchesSource = !sourceFilter || sourceFilter === "all" || candidate.source === sourceFilter
+
+      return matchesSearch && matchesSource
+    })
+    setCandidates(filtered)
+  }, [allCandidates, search, sourceFilter])
 
   async function fetchCandidates() {
-    let query = supabase.from("candidates").select("*").order("created_at", { ascending: false })
-    if (search) query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,current_title.ilike.%${search}%`)
-    if (sourceFilter && sourceFilter !== "all") query = query.eq("source", sourceFilter)
-    const { data } = await query
-    setCandidates(data || [])
-    setLoading(false)
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const response = await fetch("/api/candidates?limit=200")
+      const result = await response.json()
+
+      if (!response.ok) {
+        setLoadError(result?.error || "Failed to load candidates")
+        setAllCandidates([])
+        return
+      }
+
+      setAllCandidates(Array.isArray(result) ? result : [])
+    } catch (error) {
+      setLoadError(String(error))
+      setAllCandidates([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -60,25 +92,23 @@ export default function CandidatesPage() {
       return
     }
 
-    const { data, error } = await supabase.from("candidates").insert([formData]).select().single()
-    
-    if (error) {
-      setError(error.message)
+    const response = await fetch("/api/candidates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    })
+    const result = await response.json()
+
+    if (!response.ok) {
+      setError(result?.error || "Failed to create candidate")
       setSubmitting(false)
       return
     }
 
-    await supabase.from("activities").insert({
-      object_type: "candidate",
-      object_id: data.id,
-      type: "candidate_created",
-      payload: { name: data.full_name }
-    })
-
     setFormData({ full_name: "", email: "", phone: "", linkedin_url: "", location: "", current_title: "", current_company: "", source: "" })
     setDialogOpen(false)
     setSubmitting(false)
-    router.push(`/candidates/${data.id}`)
+    router.push(`/candidates/${result.id}`)
   }
 
   function handleResumeComplete(candidateId: string) {
@@ -163,6 +193,8 @@ export default function CandidatesPage() {
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+            ) : loadError ? (
+              <TableRow><TableCell colSpan={7} className="text-center py-8 text-destructive">{loadError}</TableCell></TableRow>
             ) : candidates.length === 0 ? (
               <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No candidates found</TableCell></TableRow>
             ) : (
