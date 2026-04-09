@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
+import { extractList } from "@/lib/api/client-response"
 
 type ApiCompany = {
   id: string
@@ -79,16 +80,16 @@ export default function ContactsPage() {
         return
       }
 
-      const companies = Array.isArray(companiesData) ? companiesData : []
+      const companies = extractList<ApiCompany>(companiesData)
       const companyById = new Map(companies.map((company) => [company.id, company]))
       const hasOpenOpportunityByContact = new Set(
-        (Array.isArray(submissionsData) ? submissionsData : [])
+        extractList<{ submission_status?: string; contact_id?: string }>(submissionsData)
           .filter((submission) => !["rejected", "accepted"].includes(submission.submission_status))
           .map((submission) => submission.contact_id)
           .filter(Boolean)
       )
 
-      let filtered = (Array.isArray(contactsData) ? contactsData : []).map((contact) => ({
+      let filtered = extractList<ApiContact>(contactsData).map((contact) => ({
         ...contact,
         clients: companyById.get(contact.company_id) || null,
         // Canonical contact model does not include these fields

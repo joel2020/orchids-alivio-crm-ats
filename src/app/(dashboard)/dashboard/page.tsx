@@ -6,6 +6,7 @@ import { APPLICATION_STAGES, type Activity, type ApplicationStage } from "@/lib/
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { extractList } from "@/lib/api/client-response"
 
 type Metrics = {
   openOpportunities: number
@@ -63,11 +64,11 @@ export default function OperationsDashboardPage() {
         setLoadError("Some dashboard data could not be loaded from API endpoints.")
       }
 
-      const jobsData = Array.isArray(jobs) ? jobs : []
-      const submissionsData = Array.isArray(submissions) ? submissions : []
-      const interviewsData = Array.isArray(interviews) ? interviews : []
-      const placementsData = Array.isArray(placements) ? placements : []
-      const activitiesData = Array.isArray(activities) ? activities : []
+      const jobsData = extractList<{ status?: string }>(jobs)
+      const submissionsData = extractList<{ stage?: string; submission_status?: string }>(submissions)
+      const interviewsData = extractList<{ starts_at?: string; start_time?: string; status?: string }>(interviews)
+      const placementsData = extractList<{ created_at?: string; start_date?: string }>(placements)
+      const activitiesData = extractList<Activity>(activities)
 
       const nextStageCounts = Object.fromEntries(APPLICATION_STAGES.map((stage) => [stage, 0])) as Record<ApplicationStage, number>
       for (const row of submissionsData) {
@@ -78,7 +79,7 @@ export default function OperationsDashboardPage() {
       }
 
       setStageCounts(nextStageCounts)
-      setRecentActivity(activitiesData as Activity[])
+      setRecentActivity(activitiesData)
       setMetrics({
         // Blocked by missing /api/opportunities endpoint
         openOpportunities: 0,

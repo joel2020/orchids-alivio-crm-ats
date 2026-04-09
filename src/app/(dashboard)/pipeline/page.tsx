@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
+import { extractErrorMessage, extractList } from "@/lib/api/client-response"
 
 type PipelineSubmission = {
   id: string
@@ -41,7 +42,7 @@ function PipelineContent() {
       ])
 
       if (!submissionsRes.ok) {
-        setLoadError(submissions?.error || "Failed to load pipeline")
+        setLoadError(extractErrorMessage(submissions, "Failed to load pipeline"))
         setApplications([])
         return
       }
@@ -51,11 +52,13 @@ function PipelineContent() {
         return
       }
 
-      const candidateById = new Map((Array.isArray(candidates) ? candidates : []).map((c) => [c.id, c]))
-      const companyById = new Map((Array.isArray(companies) ? companies : []).map((c) => [c.id, c]))
-      const jobOrderById = new Map((Array.isArray(jobOrders) ? jobOrders : []).map((j) => [j.id, j]))
+      const candidateById = new Map(extractList<{ id: string; full_name: string | null }>(candidates).map((c) => [c.id, c]))
+      const companyById = new Map(extractList<{ id: string; name: string | null }>(companies).map((c) => [c.id, c]))
+      const jobOrderById = new Map(
+        extractList<{ id: string; title: string | null; company_id: string | null }>(jobOrders).map((j) => [j.id, j])
+      )
 
-      let merged = (Array.isArray(submissions) ? submissions : []).map((submission) => {
+      let merged = extractList<PipelineSubmission>(submissions).map((submission) => {
         const jobOrder = jobOrderById.get(submission.job_order_id)
         return {
           ...submission,

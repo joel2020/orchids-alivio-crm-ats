@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ResumeUploadModal } from "@/components/resume-upload-modal"
+import { extractErrorMessage, extractList } from "@/lib/api/client-response"
 
 const SOURCES = ["linkedin", "referral", "indeed", "website", "recruiter", "resume_upload"]
 
@@ -67,12 +68,12 @@ export default function CandidatesPage() {
       const result = await response.json()
 
       if (!response.ok) {
-        setLoadError(result?.error || "Failed to load candidates")
+        setLoadError(extractErrorMessage(result, "Failed to load candidates"))
         setAllCandidates([])
         return
       }
 
-      setAllCandidates(Array.isArray(result) ? result : [])
+      setAllCandidates(extractList<Candidate>(result))
     } catch (error) {
       setLoadError(String(error))
       setAllCandidates([])
