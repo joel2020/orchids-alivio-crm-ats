@@ -132,6 +132,135 @@ export type Database = {
         }
         Relationships: []
       }
+      submissions: {
+        Row: {
+          id: string
+          account_id: string
+          candidate_id: string
+          job_order_id: string
+          submission_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          account_id: string
+          candidate_id: string
+          job_order_id: string
+          submission_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          account_id?: string
+          candidate_id?: string
+          job_order_id?: string
+          submission_status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      job_orders: {
+        Row: {
+          id: string
+          account_id: string
+          company_id: string | null
+          fee_percent: number | null
+        }
+        Insert: {
+          id?: string
+          account_id: string
+          company_id?: string | null
+          fee_percent?: number | null
+        }
+        Update: {
+          id?: string
+          account_id?: string
+          company_id?: string | null
+          fee_percent?: number | null
+        }
+        Relationships: []
+      }
+      placements: {
+        Row: {
+          id: string
+          account_id: string
+          submission_id: string
+          candidate_id: string
+          job_order_id: string
+          company_id: string | null
+          start_date: string
+          guarantee_end_date: string
+          fee: number | null
+          revenue: number | null
+          placement_status: string | null
+          offer_status: string | null
+        }
+        Insert: {
+          id?: string
+          account_id: string
+          submission_id: string
+          candidate_id: string
+          job_order_id: string
+          company_id?: string | null
+          start_date: string
+          guarantee_end_date: string
+          fee?: number | null
+          revenue?: number | null
+          placement_status?: string | null
+          offer_status?: string | null
+        }
+        Update: {
+          id?: string
+          account_id?: string
+          submission_id?: string
+          candidate_id?: string
+          job_order_id?: string
+          company_id?: string | null
+          start_date?: string
+          guarantee_end_date?: string
+          fee?: number | null
+          revenue?: number | null
+          placement_status?: string | null
+          offer_status?: string | null
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          id: string
+          account_id: string
+          entity_type: string
+          entity_id: string
+          title: string
+          status: string
+          priority: string
+          due_date: string | null
+          assignee_user_id: string | null
+        }
+        Insert: {
+          id?: string
+          account_id: string
+          entity_type: string
+          entity_id: string
+          title: string
+          status: string
+          priority: string
+          due_date?: string | null
+          assignee_user_id?: string | null
+        }
+        Update: {
+          id?: string
+          account_id?: string
+          entity_type?: string
+          entity_id?: string
+          title?: string
+          status?: string
+          priority?: string
+          due_date?: string | null
+          assignee_user_id?: string | null
+        }
+        Relationships: []
+      }
       interviews: {
         Row: {
           id: string

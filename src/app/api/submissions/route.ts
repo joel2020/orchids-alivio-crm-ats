@@ -2,6 +2,16 @@ import { NextRequest } from "next/server"
 import { requireApiAuth } from "@/lib/auth"
 import { submissionsSchema } from "@/lib/api/schemas"
 import { dataResponse, errorResponse, logApiError, parsePagination } from "@/lib/api/http"
+import type { Database } from "@/lib/database.types"
+
+type SubmissionRow = Database["public"]["Tables"]["submissions"]["Row"]
+type SubmissionInsert = Database["public"]["Tables"]["submissions"]["Insert"]
+type TaskInsert = Database["public"]["Tables"]["tasks"]["Insert"]
+
+type SubmissionListItem = SubmissionRow & {
+  candidates?: Record<string, unknown> | null
+  job_orders?: Record<string, unknown> | null
+}
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, "readonly")
@@ -17,6 +27,7 @@ export async function GET(request: NextRequest) {
     .eq("account_id", accountId)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1)
+    .returns<SubmissionListItem[]>()
 
   if (error) {
     logApiError("submissions.GET", error, { accountId })
@@ -43,15 +54,15 @@ export async function POST(request: NextRequest) {
     return errorResponse("Validation failed", { status: 422, details: parsed.error.flatten() })
   }
 
-  const payload = { ...parsed.data, account_id: accountId }
-  const { data, error } = await supabase.from("submissions").insert(payload).select("*").single()
+  const payload: SubmissionInsert = { ...parsed.data, account_id: accountId }
+  const { data, error } = await supabase.from("submissions").insert(payload).select("*").returns<SubmissionRow[]>().single()
 
   if (error) {
     logApiError("submissions.POST", error, { accountId })
     return errorResponse(error.message)
   }
 
-  await supabase.from("tasks").insert({
+  const taskPayload: TaskInsert = {
     account_id: accountId,
     entity_type: "submission",
     entity_id: data.id,
@@ -60,7 +71,9 @@ export async function POST(request: NextRequest) {
     priority: "high",
     due_date: new Date(Date.now() + 1000 * 60 * 60 * 24 * 2).toISOString().slice(0, 10),
     assignee_user_id: user.id,
-  })
+  }
+
+  await supabase.from("tasks").insert(taskPayload)
 
   return dataResponse(data, { status: 201 })
 }
