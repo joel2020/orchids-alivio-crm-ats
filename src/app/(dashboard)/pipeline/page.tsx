@@ -11,6 +11,7 @@ import { extractErrorMessage, extractList } from "@/lib/api/client-response"
 type PipelineSubmission = {
   id: string
   stage: string | null
+  submission_status?: string | null
   candidate_id: string
   job_order_id: string
   candidates?: { id: string; full_name: string | null }

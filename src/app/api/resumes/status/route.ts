@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireApiAuth } from "@/lib/auth"
 
+type ResumeParseJobStatus = {
+  id: string
+  status: string
+  candidate_id: string | null
+  candidates: { id: string; full_name: string | null; email: string | null } | null
+  resume_files: { file_name: string | null; file_type: string | null; file_size: number | null } | null
+  parsed_data: unknown
+  parse_confidence: number | null
+  parser_provider: string | null
+  error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, "readonly")
   if (auth.response) return auth.response
@@ -36,7 +50,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    const results = data.map((job) => ({
+    const jobs = (data ?? []) as ResumeParseJobStatus[]
+    const results = jobs.map((job) => ({
       jobId: job.id,
       status: job.status,
       candidateId: job.candidate_id,

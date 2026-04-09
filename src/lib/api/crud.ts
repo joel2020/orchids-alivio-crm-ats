@@ -37,17 +37,19 @@ export async function handleCreate<T extends z.ZodTypeAny>(
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 422 })
   }
 
-  const payload = { ...parsed.data, account_id: accountId, ...extras }
+  const parsedData = parsed.data as Record<string, unknown>
+  const payload = { ...parsedData, account_id: accountId, ...extras }
   const { data, error } = await supabase.from(table).insert(payload).select("*").single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   if (table !== "activities") {
+    const createdRow = data as { id?: string } | null
     await supabase.from("activities").insert({
       account_id: accountId,
       user_id: user.id,
       object_type: table,
-      object_id: data.id,
+      object_id: createdRow?.id ?? null,
       type: `${table}_created`,
       source: "system",
     })
@@ -67,7 +69,7 @@ export async function handleGetById(request: NextRequest, table: string, id: str
   return NextResponse.json(data)
 }
 
-export async function handleUpdate<T extends z.ZodTypeAny>(
+export async function handleUpdate<T extends z.ZodObject<z.ZodRawShape>>(
   request: NextRequest,
   table: string,
   id: string,
@@ -83,9 +85,10 @@ export async function handleUpdate<T extends z.ZodTypeAny>(
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 422 })
   }
 
+  const parsedData = parsed.data as Record<string, unknown>
   const { data, error } = await supabase
     .from(table)
-    .update({ ...parsed.data, updated_at: new Date().toISOString() })
+    .update({ ...parsedData, updated_at: new Date().toISOString() })
     .eq("account_id", accountId)
     .eq("id", id)
     .select("*")

@@ -1,7 +1,8 @@
-import { createClient, type User } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js"
 import { NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { env } from "@/lib/env"
+import type { Database } from "@/lib/database.types"
 
 export type AppRole = "admin" | "recruiter" | "bizdev" | "sourcer" | "readonly"
 
@@ -100,7 +101,7 @@ export type AuthContext = {
   accountId: string
   role: AppRole
   user: User
-  supabase: ReturnType<typeof createClient>
+  supabase: SupabaseClient<Database>
 }
 
 export async function requireApiAuth(
@@ -114,7 +115,7 @@ export async function requireApiAuth(
     }
   }
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${accessToken}` } },
   })
 

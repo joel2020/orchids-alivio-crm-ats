@@ -2,6 +2,20 @@ import { NextRequest } from "next/server"
 import { requireApiAuth } from "@/lib/auth"
 import { submissionsSchema } from "@/lib/api/schemas"
 import { dataResponse, errorResponse, logApiError } from "@/lib/api/http"
+import type { Database } from "@/lib/database.types"
+
+type SubmissionRow = Database["public"]["Tables"]["submissions"]["Row"]
+type SubmissionUpdate = Database["public"]["Tables"]["submissions"]["Update"]
+type JobOrderRow = Database["public"]["Tables"]["job_orders"]["Row"]
+type PlacementRow = Database["public"]["Tables"]["placements"]["Row"]
+type PlacementInsert = Database["public"]["Tables"]["placements"]["Insert"]
+
+type SubmissionDetail = SubmissionRow & {
+  candidates?: Record<string, unknown> | null
+  job_orders?: Record<string, unknown> | null
+  interviews?: Record<string, unknown>[] | null
+  placements?: Record<string, unknown>[] | null
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiAuth(request, "readonly")
@@ -14,6 +28,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .select("*, candidates(*), job_orders(*), interviews(*), placements(*)")
     .eq("account_id", accountId)
     .eq("id", id)
+    .returns<SubmissionDetail[]>()
     .single()
 
   if (error) {
@@ -37,10 +52,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data, error } = await supabase
     .from("submissions")
-    .update({ ...parsed.data, updated_at: new Date().toISOString() })
+    .update<SubmissionUpdate>({ ...parsed.data, updated_at: new Date().toISOString() })
     .eq("account_id", accountId)
     .eq("id", id)
     .select("*")
+    .returns<SubmissionRow[]>()
     .single()
 
   if (error) {
@@ -54,6 +70,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .select("id")
       .eq("account_id", accountId)
       .eq("submission_id", data.id)
+      .returns<Pick<PlacementRow, "id">[]>()
       .maybeSingle()
 
     if (!existingPlacement) {
@@ -62,6 +79,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         .select("company_id, fee_percent")
         .eq("account_id", accountId)
         .eq("id", data.job_order_id)
+        .returns<Pick<JobOrderRow, "company_id" | "fee_percent">[]>()
         .single()
 
       if (jobOrderError) {
@@ -69,7 +87,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return errorResponse(jobOrderError.message)
       }
 
-      const { error: placementError } = await supabase.from("placements").insert({
+      const placementPayload: PlacementInsert = {
         account_id: accountId,
         submission_id: data.id,
         candidate_id: data.candidate_id,
@@ -81,7 +99,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         revenue: 0,
         placement_status: "active",
         offer_status: "accepted",
-      })
+      }
+
+      const { error: placementError } = await supabase.from("placements").insert(placementPayload)
 
       if (placementError) {
         logApiError("submissions.[id].PATCH.placement", placementError, { accountId, id })
