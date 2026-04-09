@@ -47,8 +47,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return errorResponse(appRes.error.message, { status: 404 })
   }
 
+  const application = (appRes.data ?? {}) as Record<string, unknown>
+
   return dataResponse({
-    ...appRes.data,
+    ...application,
     interviews: interviewsRes.data || [],
     sequence: sequenceRes.data || null,
     activities: activitiesRes.data || [],
@@ -66,12 +68,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return errorResponse("Validation failed", { status: 422, details: parsed.error.flatten() })
   }
 
-  const { data: current, error: currentError } = await supabase
+  const { data: currentRaw, error: currentError } = await supabase
     .from("applications")
     .select("stage")
     .eq("account_id", accountId)
     .eq("id", id)
     .single()
+
+  const current = currentRaw as { stage?: string | null } | null
 
   if (currentError) {
     logApiError("applications.[id].PATCH.current", currentError, { accountId, id })
@@ -80,7 +84,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data, error } = await supabase
     .from("applications")
-    .update({ ...parsed.data, updated_at: new Date().toISOString() })
+    .update({ ...parsed.data, updated_at: new Date().toISOString() } as never)
     .eq("account_id", accountId)
     .eq("id", id)
     .select()
@@ -98,7 +102,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       object_id: id,
       type: "stage_changed",
       payload: { old_stage: current?.stage, new_stage: parsed.data.stage },
-    })
+    } as never)
   }
 
   return dataResponse(data)

@@ -84,9 +84,9 @@ export default function ContactsPage() {
       const companyById = new Map(companies.map((company) => [company.id, company]))
       const hasOpenOpportunityByContact = new Set(
         extractList<{ submission_status?: string; contact_id?: string }>(submissionsData)
-          .filter((submission) => !["rejected", "accepted"].includes(submission.submission_status))
+          .filter((submission) => !["rejected", "accepted"].includes(submission.submission_status ?? ""))
           .map((submission) => submission.contact_id)
-          .filter(Boolean)
+          .filter((contactId): contactId is string => Boolean(contactId))
       )
 
       let filtered = extractList<ApiContact>(contactsData).map((contact) => ({
@@ -125,10 +125,13 @@ export default function ContactsPage() {
       }
 
       filtered.sort((a, b) => {
-        const sortValueA = (a as Record<string, string | null>)[sortField] || ""
-        const sortValueB = (b as Record<string, string | null>)[sortField] || ""
-        if (sortDirection === "asc") return String(sortValueA).localeCompare(String(sortValueB))
-        return String(sortValueB).localeCompare(String(sortValueA))
+        const sortValueA = a[sortField as keyof ContactWithClient]
+        const sortValueB = b[sortField as keyof ContactWithClient]
+        const normalizedA = typeof sortValueA === "string" ? sortValueA : sortValueA == null ? "" : String(sortValueA)
+        const normalizedB = typeof sortValueB === "string" ? sortValueB : sortValueB == null ? "" : String(sortValueB)
+
+        if (sortDirection === "asc") return normalizedA.localeCompare(normalizedB)
+        return normalizedB.localeCompare(normalizedA)
       })
 
       setContacts(filtered)
