@@ -1,7 +1,10 @@
 import { NextRequest } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
 import { requireApiAuth } from "@/lib/auth"
 import { dataResponse, errorResponse, logApiError, parsePagination } from "@/lib/api/http"
+import type { Database } from "@/lib/database.types"
+import { env } from "@/lib/env"
 
 const applicationCreateSchema = z.object({
   candidate_id: z.uuid(),
@@ -23,10 +26,22 @@ const pipelineStages = [
   "nurture",
 ]
 
+type ApplicationRow = Database["public"]["Tables"]["applications"]["Row"]
+type ApplicationInsert = Database["public"]["Tables"]["applications"]["Insert"]
+type ActivityInsert = Database["public"]["Tables"]["activities"]["Insert"]
+
+type ApplicationListItem = ApplicationRow & {
+  candidates: { full_name: string | null } | null
+  jobs: { title: string | null } | null
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, "readonly")
   if (auth.response) return auth.response
-  const { supabase, accountId } = auth.context!
+  const { accessToken, accountId } = auth.context!
+  const supabase = createClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  })
 
   const { searchParams } = new URL(request.url)
   const jobId = searchParams.get("job_id")
@@ -49,15 +64,16 @@ export async function GET(request: NextRequest) {
     query = query.range(offset, offset + limit - 1)
   }
 
-  const { data, error, count } = await query
+  const { data, error, count } = await query.returns<ApplicationListItem[]>()
   if (error) {
     logApiError("applications.GET", error, { accountId, jobId, candidateId, stage, view })
     return errorResponse(error.message)
   }
 
   if (view === "board" && jobId) {
-    const board = pipelineStages.reduce<Record<string, typeof data>>((acc, currentStage) => {
-      acc[currentStage] = (data || [])
+    const applications = data ?? []
+    const board = pipelineStages.reduce<Record<string, ApplicationListItem[]>>((acc, currentStage) => {
+      acc[currentStage] = applications
         .filter((app) => app.stage === currentStage)
         .sort((a, b) => a.position - b.position)
       return acc
@@ -79,7 +95,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = await requireApiAuth(request, "recruiter")
   if (auth.response) return auth.response
-  const { supabase, accountId } = auth.context!
+  const { accessToken, accountId } = auth.context!
+  const supabase = createClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  })
 
   const parsed = applicationCreateSchema.safeParse(await request.json())
   if (!parsed.success) {
@@ -123,17 +142,18 @@ export async function POST(request: NextRequest) {
     return errorResponse(countError.message)
   }
 
+  const insertPayload: ApplicationInsert = {
+    ...payload,
+    account_id: accountId,
+    stage: targetStage,
+    position: count || 0,
+  }
+
   const { data, error } = await supabase
     .from("applications")
-    .insert([
-      {
-        ...payload,
-        account_id: accountId,
-        stage: targetStage,
-        position: count || 0,
-      },
-    ])
+    .insert([insertPayload])
     .select("*, candidates(*), jobs(*)")
+    .returns<ApplicationListItem[]>()
     .single()
 
   if (error) {
@@ -141,13 +161,15 @@ export async function POST(request: NextRequest) {
     return errorResponse(error.message)
   }
 
-  await supabase.from("activities").insert({
+  const activityPayload: ActivityInsert = {
     account_id: accountId,
     object_type: "application",
     object_id: data.id,
     type: "application_created",
     payload: { candidate_name: data.candidates?.full_name, job_title: data.jobs?.title },
-  })
+  }
+
+  await supabase.from("activities").insert(activityPayload)
 
   return dataResponse(data, { status: 201 })
 }
