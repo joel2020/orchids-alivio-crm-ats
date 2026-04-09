@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireApiAuth } from "@/lib/auth"
+import { errorResponse, logApiError } from "@/lib/api/http"
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, "readonly")
@@ -14,6 +15,12 @@ export async function GET(request: NextRequest) {
     supabase.from("placements").select("revenue, fee").eq("account_id", accountId),
     supabase.from("opportunities").select("value, stage").eq("account_id", accountId),
   ])
+
+  const firstError = companies.error ?? candidates.error ?? jobOrders.error ?? submissions.error ?? placements.error ?? opportunities.error
+  if (firstError) {
+    logApiError("/api/dashboard/overview", firstError)
+    return errorResponse(400, "bad_request", "Failed to fetch dashboard overview")
+  }
 
   return NextResponse.json({
     companies: companies.count ?? 0,

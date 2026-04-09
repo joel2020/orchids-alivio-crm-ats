@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireApiAuth } from "@/lib/auth"
+import { errorResponse, logApiError } from "@/lib/api/http"
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, "readonly")
@@ -12,6 +13,12 @@ export async function GET(request: NextRequest) {
     supabase.from("placements").select("placement_status, offer_status").eq("account_id", accountId),
     supabase.from("applications").select("stage").eq("account_id", accountId),
   ])
+
+  const firstError = submissionRows.error ?? interviewRows.error ?? placementRows.error ?? applicationRows.error
+  if (firstError) {
+    logApiError("/api/dashboard/pipeline", firstError)
+    return errorResponse(400, "bad_request", "Failed to fetch dashboard pipeline")
+  }
 
   const countBy = <T extends Record<string, unknown>>(rows: T[] | null, key: keyof T) =>
     (rows ?? []).reduce<Record<string, number>>((acc, row) => {
