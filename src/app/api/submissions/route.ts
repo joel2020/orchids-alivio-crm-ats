@@ -1,20 +1,36 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
 import { requireApiAuth } from "@/lib/auth"
 import { submissionsSchema } from "@/lib/api/schemas"
+import { dataResponse, errorResponse, logApiError, parsePagination } from "@/lib/api/http"
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, "readonly")
   if (auth.response) return auth.response
   const { supabase, accountId } = auth.context!
 
-  const { data, error } = await supabase
+  const { searchParams } = new URL(request.url)
+  const { page, limit, offset } = parsePagination(searchParams, { defaultLimit: 50, maxLimit: 200 })
+
+  const { data, error, count } = await supabase
     .from("submissions")
-    .select("*, candidates(*), job_orders(*)")
+    .select("*, candidates(*), job_orders(*)", { count: "exact" })
     .eq("account_id", accountId)
     .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json(data)
+  if (error) {
+    logApiError("submissions.GET", error, { accountId })
+    return errorResponse(error.message)
+  }
+
+  return dataResponse(data ?? [], {
+    pagination: {
+      page,
+      limit,
+      total: count ?? 0,
+      totalPages: Math.ceil((count ?? 0) / limit),
+    },
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -24,12 +40,16 @@ export async function POST(request: NextRequest) {
 
   const parsed = submissionsSchema.safeParse(await request.json())
   if (!parsed.success) {
-    return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 422 })
+    return errorResponse("Validation failed", { status: 422, details: parsed.error.flatten() })
   }
 
   const payload = { ...parsed.data, account_id: accountId }
   const { data, error } = await supabase.from("submissions").insert(payload).select("*").single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  if (error) {
+    logApiError("submissions.POST", error, { accountId })
+    return errorResponse(error.message)
+  }
 
   await supabase.from("tasks").insert({
     account_id: accountId,
@@ -42,5 +62,5 @@ export async function POST(request: NextRequest) {
     assignee_user_id: user.id,
   })
 
-  return NextResponse.json(data, { status: 201 })
+  return dataResponse(data, { status: 201 })
 }

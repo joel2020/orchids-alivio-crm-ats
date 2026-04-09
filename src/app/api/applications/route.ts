@@ -1,5 +1,27 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
+import { z } from "zod"
 import { requireApiAuth } from "@/lib/auth"
+import { dataResponse, errorResponse, logApiError, parsePagination } from "@/lib/api/http"
+
+const applicationCreateSchema = z.object({
+  candidate_id: z.uuid(),
+  job_id: z.uuid(),
+  stage: z.string().trim().optional(),
+})
+
+const pipelineStages = [
+  "sourced",
+  "contacted",
+  "replied",
+  "qualified",
+  "submitted",
+  "client_interview",
+  "final_interview",
+  "offer",
+  "placed",
+  "rejected",
+  "nurture",
+]
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, "readonly")
@@ -11,10 +33,11 @@ export async function GET(request: NextRequest) {
   const candidateId = searchParams.get("candidate_id")
   const stage = searchParams.get("stage")
   const view = searchParams.get("view")
+  const { page, limit, offset } = parsePagination(searchParams, { defaultLimit: 100, maxLimit: 200 })
 
   let query = supabase
     .from("applications")
-    .select("*, candidates(*), jobs(*, projects(*, clients(*)))")
+    .select("*, candidates(*), jobs(*, projects(*, clients(*)))", { count: "exact" })
     .eq("account_id", accountId)
     .order("position", { ascending: true })
 
@@ -22,22 +45,35 @@ export async function GET(request: NextRequest) {
   if (candidateId) query = query.eq("candidate_id", candidateId)
   if (stage && stage !== "all") query = query.eq("stage", stage)
 
-  const { data, error } = await query
+  if (!(view === "board" && jobId)) {
+    query = query.range(offset, offset + limit - 1)
+  }
 
+  const { data, error, count } = await query
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    logApiError("applications.GET", error, { accountId, jobId, candidateId, stage, view })
+    return errorResponse(error.message)
   }
 
   if (view === "board" && jobId) {
-    const stages = ['sourced', 'contacted', 'replied', 'qualified', 'submitted', 'client_interview', 'final_interview', 'offer', 'placed', 'rejected', 'nurture']
-    const board = stages.reduce((acc, s) => {
-      acc[s] = (data || []).filter(app => app.stage === s).sort((a, b) => a.position - b.position)
+    const board = pipelineStages.reduce<Record<string, typeof data>>((acc, currentStage) => {
+      acc[currentStage] = (data || [])
+        .filter((app) => app.stage === currentStage)
+        .sort((a, b) => a.position - b.position)
       return acc
-    }, {} as Record<string, typeof data>)
-    return NextResponse.json(board)
+    }, {})
+
+    return dataResponse(board)
   }
 
-  return NextResponse.json(data)
+  return dataResponse(data ?? [], {
+    pagination: {
+      page,
+      limit,
+      total: count ?? 0,
+      totalPages: Math.ceil((count ?? 0) / limit),
+    },
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -45,54 +81,64 @@ export async function POST(request: NextRequest) {
   if (auth.response) return auth.response
   const { supabase, accountId } = auth.context!
 
-  const body = await request.json()
-
-  if (!body.candidate_id || !body.job_id) {
-    return NextResponse.json({ error: "candidate_id and job_id are required" }, { status: 400 })
+  const parsed = applicationCreateSchema.safeParse(await request.json())
+  if (!parsed.success) {
+    return errorResponse("Validation failed", { status: 422, details: parsed.error.flatten() })
   }
+
+  const payload = parsed.data
 
   const { data: existing } = await supabase
     .from("applications")
     .select("id")
     .eq("account_id", accountId)
-    .eq("candidate_id", body.candidate_id)
-    .eq("job_id", body.job_id)
-    .single()
+    .eq("candidate_id", payload.candidate_id)
+    .eq("job_id", payload.job_id)
+    .maybeSingle()
 
   if (existing) {
-    return NextResponse.json({ error: "Candidate is already in this job pipeline" }, { status: 400 })
+    return errorResponse("Candidate is already in this job pipeline")
   }
 
   const { data: jobExists } = await supabase
     .from("jobs")
     .select("id")
     .eq("account_id", accountId)
-    .eq("id", body.job_id)
-    .single()
+    .eq("id", payload.job_id)
+    .maybeSingle()
 
   if (!jobExists) {
-    return NextResponse.json({ error: "Job not found" }, { status: 400 })
+    return errorResponse("Job not found")
   }
 
-  const { count } = await supabase
+  const targetStage = payload.stage || "sourced"
+  const { count, error: countError } = await supabase
     .from("applications")
     .select("*", { count: "exact", head: true })
     .eq("account_id", accountId)
-    .eq("stage", body.stage || "sourced")
+    .eq("stage", targetStage)
+
+  if (countError) {
+    logApiError("applications.POST.count", countError, { accountId, stage: targetStage })
+    return errorResponse(countError.message)
+  }
 
   const { data, error } = await supabase
     .from("applications")
-    .insert([{
-      ...body,
-      account_id: accountId,
-      stage: body.stage || "sourced",
-      position: count || 0
-    }])
+    .insert([
+      {
+        ...payload,
+        account_id: accountId,
+        stage: targetStage,
+        position: count || 0,
+      },
+    ])
     .select("*, candidates(*), jobs(*)")
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    logApiError("applications.POST", error, { accountId })
+    return errorResponse(error.message)
   }
 
   await supabase.from("activities").insert({
@@ -100,8 +146,8 @@ export async function POST(request: NextRequest) {
     object_type: "application",
     object_id: data.id,
     type: "application_created",
-    payload: { candidate_name: data.candidates?.full_name, job_title: data.jobs?.title }
+    payload: { candidate_name: data.candidates?.full_name, job_title: data.jobs?.title },
   })
 
-  return NextResponse.json(data, { status: 201 })
+  return dataResponse(data, { status: 201 })
 }
