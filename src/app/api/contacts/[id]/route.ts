@@ -1,19 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireApiAuth } from "@/lib/auth"
-import { submissionsSchema } from "@/lib/api/schemas"
-
-function submissionToApplication(row: Record<string, unknown>) {
-  return {
-    id: row.id,
-    candidate_id: row.candidate_id,
-    job_id: row.job_order_id,
-    stage: row.submission_status,
-    status: row.offer_status,
-    rejection_reason: row.notes,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  }
-}
+import { contactsSchema } from "@/lib/api/schemas"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiAuth(request, "readonly")
@@ -21,39 +8,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { supabase, accountId } = auth.context!
   const { id } = await params
 
-  const { data, error } = await supabase.from("submissions").select("*").eq("account_id", accountId).eq("id", id).single()
+  const { data, error } = await supabase.from("contacts").select("*, companies(*)").eq("account_id", accountId).eq("id", id).single()
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
-  return NextResponse.json(submissionToApplication(data))
+  return NextResponse.json(data)
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireApiAuth(request, "recruiter")
+  const auth = await requireApiAuth(request, "bizdev")
   if (auth.response) return auth.response
   const { supabase, accountId } = auth.context!
   const { id } = await params
 
-  const body = await request.json()
-  const parsed = submissionsSchema.partial().safeParse({
-    candidate_id: body.candidate_id,
-    job_order_id: body.job_id,
-    submission_status: body.stage,
-    notes: body.rejection_reason,
-  })
-
+  const parsed = contactsSchema.partial().safeParse(await request.json())
   if (!parsed.success) {
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { data, error } = await supabase
-    .from("submissions")
-    .update({ ...parsed.data, updated_at: new Date().toISOString() })
-    .eq("account_id", accountId)
-    .eq("id", id)
-    .select("*")
-    .single()
-
+  const { data, error } = await supabase.from("contacts").update({ ...parsed.data, updated_at: new Date().toISOString() }).eq("account_id", accountId).eq("id", id).select("*").single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json(submissionToApplication(data))
+  return NextResponse.json(data)
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -62,7 +35,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { supabase, accountId } = auth.context!
   const { id } = await params
 
-  const { error } = await supabase.from("submissions").delete().eq("account_id", accountId).eq("id", id)
+  const { error } = await supabase.from("contacts").delete().eq("account_id", accountId).eq("id", id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ success: true })
 }

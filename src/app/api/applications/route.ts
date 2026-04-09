@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireApiAuth } from "@/lib/auth"
+import { submissionsSchema } from "@/lib/api/schemas"
+
+function submissionToApplication(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    candidate_id: row.candidate_id,
+    job_id: row.job_order_id,
+    stage: row.submission_status,
+    status: row.offer_status,
+    rejection_reason: row.notes,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, "readonly")
@@ -10,98 +24,55 @@ export async function GET(request: NextRequest) {
   const jobId = searchParams.get("job_id")
   const candidateId = searchParams.get("candidate_id")
   const stage = searchParams.get("stage")
-  const view = searchParams.get("view")
 
   let query = supabase
-    .from("applications")
-    .select("*, candidates(*), jobs(*, projects(*, clients(*)))")
+    .from("submissions")
+    .select("*")
     .eq("account_id", accountId)
-    .order("position", { ascending: true })
+    .order("created_at", { ascending: false })
 
-  if (jobId) query = query.eq("job_id", jobId)
+  if (jobId) query = query.eq("job_order_id", jobId)
   if (candidateId) query = query.eq("candidate_id", candidateId)
-  if (stage && stage !== "all") query = query.eq("stage", stage)
+  if (stage) query = query.eq("submission_status", stage)
 
   const { data, error } = await query
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
-  }
-
-  if (view === "board" && jobId) {
-    const stages = ['sourced', 'contacted', 'replied', 'qualified', 'submitted', 'client_interview', 'final_interview', 'offer', 'placed', 'rejected', 'nurture']
-    const board = stages.reduce((acc, s) => {
-      acc[s] = (data || []).filter(app => app.stage === s).sort((a, b) => a.position - b.position)
-      return acc
-    }, {} as Record<string, typeof data>)
-    return NextResponse.json(board)
-  }
-
-  return NextResponse.json(data)
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json((data ?? []).map(submissionToApplication))
 }
 
 export async function POST(request: NextRequest) {
   const auth = await requireApiAuth(request, "recruiter")
   if (auth.response) return auth.response
-  const { supabase, accountId } = auth.context!
+  const { supabase, accountId, user } = auth.context!
 
-  const body = await request.json()
+  const payload = await request.json()
+  const parsed = submissionsSchema.safeParse({
+    candidate_id: payload.candidate_id,
+    job_order_id: payload.job_id,
+    submission_status: payload.stage ?? "draft",
+    notes: payload.rejection_reason ?? null,
+  })
 
-  if (!body.candidate_id || !body.job_id) {
-    return NextResponse.json({ error: "candidate_id and job_id are required" }, { status: 400 })
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 422 })
   }
-
-  const { data: existing } = await supabase
-    .from("applications")
-    .select("id")
-    .eq("account_id", accountId)
-    .eq("candidate_id", body.candidate_id)
-    .eq("job_id", body.job_id)
-    .single()
-
-  if (existing) {
-    return NextResponse.json({ error: "Candidate is already in this job pipeline" }, { status: 400 })
-  }
-
-  const { data: jobExists } = await supabase
-    .from("jobs")
-    .select("id")
-    .eq("account_id", accountId)
-    .eq("id", body.job_id)
-    .single()
-
-  if (!jobExists) {
-    return NextResponse.json({ error: "Job not found" }, { status: 400 })
-  }
-
-  const { count } = await supabase
-    .from("applications")
-    .select("*", { count: "exact", head: true })
-    .eq("account_id", accountId)
-    .eq("stage", body.stage || "sourced")
 
   const { data, error } = await supabase
-    .from("applications")
-    .insert([{
-      ...body,
-      account_id: accountId,
-      stage: body.stage || "sourced",
-      position: count || 0
-    }])
-    .select("*, candidates(*), jobs(*)")
+    .from("submissions")
+    .insert({ ...parsed.data, account_id: accountId })
+    .select("*")
     .single()
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   await supabase.from("activities").insert({
     account_id: accountId,
-    object_type: "application",
+    object_type: "submission",
     object_id: data.id,
-    type: "application_created",
-    payload: { candidate_name: data.candidates?.full_name, job_title: data.jobs?.title }
+    type: "submission_created",
+    source: "system",
+    user_id: user.id,
   })
 
-  return NextResponse.json(data, { status: 201 })
+  return NextResponse.json(submissionToApplication(data), { status: 201 })
 }

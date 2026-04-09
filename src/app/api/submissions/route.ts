@@ -1,30 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireApiAuth } from "@/lib/auth"
-import { activitiesSchema } from "@/lib/api/schemas"
+import { submissionsSchema } from "@/lib/api/schemas"
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, "readonly")
   if (auth.response) return auth.response
   const { supabase, accountId } = auth.context!
 
-  const { searchParams } = new URL(request.url)
-  const objectType = searchParams.get("object_type")
-  const objectId = searchParams.get("object_id")
-  const type = searchParams.get("type")
-  const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200)
-
-  let query = supabase
-    .from("activities")
-    .select("*")
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("*, candidates(*), job_orders(*)")
     .eq("account_id", accountId)
     .order("created_at", { ascending: false })
-    .limit(limit)
 
-  if (objectType) query = query.eq("object_type", objectType)
-  if (objectId) query = query.eq("object_id", objectId)
-  if (type) query = query.eq("type", type)
-
-  const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)
 }
@@ -34,17 +22,25 @@ export async function POST(request: NextRequest) {
   if (auth.response) return auth.response
   const { supabase, accountId, user } = auth.context!
 
-  const parsed = activitiesSchema.safeParse(await request.json())
+  const parsed = submissionsSchema.safeParse(await request.json())
   if (!parsed.success) {
     return NextResponse.json({ error: "Validation failed", details: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { data, error } = await supabase
-    .from("activities")
-    .insert({ ...parsed.data, account_id: accountId, user_id: user.id })
-    .select("*")
-    .single()
-
+  const payload = { ...parsed.data, account_id: accountId }
+  const { data, error } = await supabase.from("submissions").insert(payload).select("*").single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  await supabase.from("tasks").insert({
+    account_id: accountId,
+    entity_type: "submission",
+    entity_id: data.id,
+    title: "Follow up with client on submitted candidate",
+    status: "open",
+    priority: "high",
+    due_date: new Date(Date.now() + 1000 * 60 * 60 * 24 * 2).toISOString().slice(0, 10),
+    assignee_user_id: user.id,
+  })
+
   return NextResponse.json(data, { status: 201 })
 }

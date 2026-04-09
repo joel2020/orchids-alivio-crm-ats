@@ -219,7 +219,7 @@ export type Task = {
   updated_at: string
 }
 
-export type UserRole = 'admin' | 'recruiter' | 'readonly'
+export type UserRole = 'admin' | 'recruiter' | 'bizdev' | 'sourcer' | 'readonly'
 
 export type User = {
   id: string
@@ -423,4 +423,4 @@ export const OPPORTUNITY_SOURCES: OpportunitySource[] = ['referral', 'outbound',
 export const REASONS_LOST: ReasonLost[] = ['price', 'timing', 'competition', 'no_budget', 'no_decision', 'other']
 export const TASK_STATUSES: TaskStatus[] = ['open', 'in_progress', 'done']
 export const TASK_PRIORITIES: TaskPriority[] = ['low', 'medium', 'high']
-export const USER_ROLES: UserRole[] = ['admin', 'recruiter', 'readonly']
+export const USER_ROLES: UserRole[] = ['admin', 'recruiter', 'bizdev', 'sourcer', 'readonly']
