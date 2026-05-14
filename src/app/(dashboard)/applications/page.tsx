@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { BulkLeadUpload } from "@/components/crm/bulk-lead-upload"
 
 type ApplicationWithRelations = Application & {
   candidates: Candidate
@@ -63,14 +64,14 @@ export default function ApplicationsPage() {
       position: newPosition,
       updated_at: new Date().toISOString() 
     }).eq("id", id)
-    
+
     await supabase.from("activities").insert({
       object_type: "application",
       object_id: id,
       type: "stage_changed",
       payload: { new_stage: newStage }
     })
-    
+
     fetchApplications()
   }
 
@@ -104,6 +105,7 @@ export default function ApplicationsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Applications</h1>
         <div className="flex gap-2">
+          <BulkLeadUpload onImported={fetchApplications} />
           <Button variant={view === "kanban" ? "default" : "outline"} size="sm" onClick={() => setView("kanban")}><LayoutGrid className="h-4 w-4" /></Button>
           <Button variant={view === "list" ? "default" : "outline"} size="sm" onClick={() => setView("list")}><List className="h-4 w-4" /></Button>
         </div>
